@@ -30,13 +30,6 @@ body{
 .side{background:var(--paper);border-left:1px solid var(--line);padding:12px;overflow:auto}
 .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px}
 .panel h3{margin:.2rem 0 .6rem;font-size:1rem}
-label{display:block;font-size:.85rem;color:#334; margin:.35rem 0 .2rem}
-input[type="text"],textarea,select{
-  width:100%;padding:.5rem .55rem;border:1px solid #d8e0ea;
-  border-radius:.5rem;font:inherit;background:#fff
-}
-textarea{min-height:90px;resize:vertical}
-.hr{height:1px;background:#e7edf5;margin:.6rem 0}
 .hint{font-size:.82rem;color:var(--ink2)}
 
 /* Rete skin (v2 + vue preset) */

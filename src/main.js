@@ -1,4 +1,4 @@
-// Lauresta skin demo: Rete v2 + Vue + Connection + AutoArrange (manual) + TaskNode + JSON export
+// Lauresta skin demo: Rete v2 + Vue + Connection + AutoArrange (manual) + TaskNode (compact) + JSON export
 import { NodeEditor, ClassicPreset } from 'rete'
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin'
 import { VuePlugin, Presets as VuePresets } from 'rete-vue-plugin'
@@ -17,46 +17,50 @@ function downloadJson(obj, name) {
   a.click()
 }
 
+// Compact TaskNode: показываем только TaskType и WC.
+// Остальные поля храним в _defaults для экспорта.
 class TaskNode extends ClassicPreset.Node {
-  width = 500
-  height = 240
+  width = 480
+  height = 0 // выставим ниже из расчёта
+
   constructor(init = {}) {
-    super(init.title ?? 'Task')
+    super(init.title ?? (init.taskType ?? 'Task'))
+
+    // дефолты «скрытых» полей
+    this._defaults = {
+      terminal: !!init.terminal,
+      mandatory: init.mandatory ?? true,
+      kitImpact: Number(init.kitImpact ?? 10),
+      formulasText: init.formulasText ?? ''
+    }
 
     this.addInput('inp', new ClassicPreset.Input(any, 'dependsOn', true))
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
+    // видимые поля
     this.addControl('taskType',
       new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'CUT_FABRIC' }))
     this.addControl('wc',
       new ClassicPreset.InputControl('text', { initial: init.wc ?? 'FAB' }))
 
-    this.addControl('terminal',
-      new ClassicPreset.InputControl('checkbox', { initial: !!init.terminal }))
-    this.addControl('mandatory',
-      new ClassicPreset.InputControl('checkbox', { initial: init.mandatory ?? true }))
-
-    this.addControl('kitImpact',
-      new ClassicPreset.InputControl('number', { initial: Number(init.kitImpact ?? 10) }))
-
-    // Пока без textarea — просто длинная строка; позже сделаем кастомный control
-    this.addControl('formulasText',
-      new ClassicPreset.InputControl('text', {
-        initial: init.formulasText ?? '',
-        placeholder: 'fabric_length_mm = CEILING((height_mm + 20) * 1.01, 1)'
-      }))
+    // 🔧 авто-высота ноды по количеству видимых контролов
+    const visibleControls = 2       // taskType + wc
+    const base = 120                // шапка, отступы, сокеты
+    const perRow = 40               // одна строка контрола
+    this.height = base + visibleControls * perRow // ≈ 200px
   }
 }
 
 function collect(editor, area) {
   const nodes = editor.getNodes().map(n => {
+    const defaults = n._defaults ?? {}
     const data = {
       taskType: n.controls.taskType?.value || 'TASK',
       wc: n.controls.wc?.value || 'WC',
-      terminal: !!n.controls.terminal?.value,
-      kitImpact: Number(n.controls.kitImpact?.value || 0),
-      mandatory: !!n.controls.mandatory?.value,
-      formulasText: n.controls.formulasText?.value || ''
+      terminal: !!(n.controls.terminal?.value ?? defaults.terminal ?? false),
+      kitImpact: Number(n.controls.kitImpact?.value ?? defaults.kitImpact ?? 0),
+      mandatory: !!(n.controls.mandatory?.value ?? defaults.mandatory ?? true),
+      formulasText: n.controls.formulasText?.value ?? defaults.formulasText ?? ''
     }
     const pos = area.area?.transformations?.get(n.id)?.position ?? n.position ?? [0, 0]
     return { id: n.id, title: n.label, ...data, position: pos }
@@ -116,7 +120,7 @@ async function setup() {
     spacing: { nodeNode: 80, nodeEdge: 40, edgeEdge: 20 }
   }))
 
-  // seed nodes
+  // seed
   const a = new TaskNode({
     title: 'CUT_FABRIC', taskType: 'CUT_FABRIC', wc: 'FAB',
     kitImpact: 10, mandatory: true,
@@ -129,46 +133,34 @@ async function setup() {
   })
   const c = new TaskNode({
     title: 'ASM_ROLLER', taskType: 'ASM_ROLLER', wc: 'ASM',
-    kitImpact: 100, mandatory: true, terminal: true
+    terminal: true, kitImpact: 100, mandatory: true
   })
 
   await editor.addNode(a); await editor.addNode(b); await editor.addNode(c)
-
-  // manual initial positions (no auto-layout on load)
-  a.position=[80,180]; b.position=[580,180]; c.position=[1080,180]
-
+  a.position=[80,180]; b.position=[560,180]; c.position=[1040,180]
   await editor.addConnection(new ClassicPreset.Connection(a, 'out', c, 'inp'))
   await editor.addConnection(new ClassicPreset.Connection(b, 'out', c, 'inp'))
-
-  await AreaExtensions.zoomAt?.(area, [a, b, c])
+  await AreaExtensions.zoomAt?.(area, [a,b,c])
 
   const $ = id => document.getElementById(id)
 
-  $('btnAdd')?.addEventListener('click', async () => {
-    const nodes = editor.getNodes()
-    const last = nodes.at(-1)
-    const n = new TaskNode({ title: 'TASK', taskType: 'TASK', wc: 'WC' })
+  $('btnAdd').onclick = async () => {
+    const nodes = editor.getNodes(); const last = nodes.at(-1)
+    const n = new TaskNode({ title:'TASK', taskType:'TASK', wc:'WC' })
     await editor.addNode(n)
-    n.position = [(last?.position?.[0] ?? 80) + 500, last?.position?.[1] ?? 180]
+    n.position = [(last?.position?.[0]??80)+480, last?.position?.[1]??180]
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
-  })
-
-  $('btnAuto')?.addEventListener('click', async () => {
+  }
+  $('btnAuto').onclick = async () => {
     await arrange.layout?.()
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
-  })
-
-  $('btnDelete')?.addEventListener('click', () => {
-    // простое удаление: уберём последний добавленный узел (или выделенный?)
+  }
+  $('btnDelete').onclick = () => {
     const nodes = editor.getNodes()
     const last = nodes.at(-1)
     if (last) editor.removeNode(last.id)
-  })
-
-  $('btnExport')?.addEventListener('click', () => {
-    const payload = collect(editor, area)
-    downloadJson(payload, 'tech_rules_export.json')
-  })
+  }
+  $('btnExport').onclick = () => downloadJson(collect(editor,area),'tech_rules_export.json')
 
   // HMR cleanup
   window.__rete.dispose = () => {
