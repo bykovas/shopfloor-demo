@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>LKvitai.MES · Fabric Cutting (Kiosk · FullHD)</title>
+<style>
+  /* ========= LAURESTA BRAND (put exact HEX here) =========
+     Replace these with your official colors/fonts. 
+     Examples below are placeholders. */
+  :root{
+    --lauresta-primary:#0c5a43;    /* main brand (green) */
+    --lauresta-primary-weak:#e4f1ec;
+    --lauresta-accent:#e5a100;     /* accent (amber) */
+    --lauresta-bg-dark:#0b1f16;    /* header bg */
+    --lauresta-fg:#ffffff;
+    --ok:#16a34a; --warn:#f59e0b; --bad:#ef4444;
+    --surface:#ffffff; --surface-2:#f1f5f9; --text:#0b1f16; --muted:#64748b; --border:#e2e8f0;
+    --chip:#fff7ed;
+    --tap:88px;           /* min touch target */
+    --radius:18px;
+    --font: Inter, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    --base: clamp(18px, 1.8vh, 22px); /* scale from screen height */
+  }
+
+  /* ===== Base ===== */
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#f8fafc;color:var(--text);font-family:var(--font);font-size:var(--base);overflow:hidden}
+  .app{width:100vw;height:100vh;display:flex;flex-direction:column}
+
+  header{
+    flex:0 0 auto; background:var(--lauresta-bg-dark); color:var(--lauresta-fg);
+    padding:18px 24px; display:flex; align-items:center; justify-content:space-between
+  }
+  .title{font-weight:900; font-size:calc(var(--base)*1.2); display:flex; gap:12px; align-items:center}
+  .kiosk-btn{padding:10px 16px; border-radius:999px; border:2px solid rgba(255,255,255,.25); background:transparent; color:#fff; font-weight:800}
+
+  .tabs{
+    flex:0 0 auto; display:flex; gap:14px; padding:14px 16px; background:#f8fafc;
+  }
+  .tab{
+    flex:1; text-align:center; padding:16px; border-radius:999px; border:2px solid var(--border);
+    background:#fff; font-weight:900; font-size:calc(var(--base)*1.05)
+  }
+  .tab.active{background:var(--lauresta-primary); color:#fff; border-color:var(--lauresta-primary)}
+
+  .content{flex:1 1 auto; overflow:auto; padding:16px; padding-bottom:140px}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; box-shadow:0 6px 24px rgba(0,0,0,.08)
+  }
+  .row{display:flex; gap:18px; align-items:center; flex-wrap:wrap}
+  .between{justify-content:space-between}
+  .label{font-size:calc(var(--base)*0.85); color:var(--muted)}
+  .value{font-size:calc(var(--base)*1.8); font-weight:900}
+  .chips{display:flex; gap:12px; flex-wrap:wrap; margin-top:12px}
+  .chip{padding:10px 14px; border-radius:999px; border:1px solid var(--border); background:#fff; font-weight:800; font-size:calc(var(--base)*0.95)}
+  .badge{display:inline-flex; align-items:center; gap:10px; padding:10px 14px; border-radius:999px; font-weight:900}
+  .badge.cut{background:var(--lauresta-primary-weak); color:#0c3b2d}
+
+  .actions{display:flex; gap:16px; margin-top:18px}
+  .btn{
+    flex:1; min-height:var(--tap); border-radius:16px; border:0; font-weight:900; font-size:calc(var(--base)*1.2);
+    box-shadow:0 4px 0 rgba(0,0,0,.06); transform:translateY(0); transition:.05s transform ease;
+  }
+  .btn:active{transform:translateY(2px)}
+  .btn.primary{background:var(--lauresta-primary); color:#fff}
+  .btn.ok{background:var(--ok); color:#fff}
+  .btn.warn{background:var(--warn); color:#1f2937}
+  .btn.ghost{background:#fff; color:var(--text); border:2px solid var(--border)}
+  .btn.accent{background:var(--lauresta-accent); color:#1f2937}
+
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:18px}
+  .kpi .box{background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px; text-align:center}
+  .kpi .h{color:var(--muted); font-size:calc(var(--base)*0.95); font-weight:700}
+  .kpi .v{font-weight:900; font-size:calc(var(--base)*1.6)}
+
+  /* Queue grid fills full width responsively */
+  .q-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:16px}
+  .q-card{background:#fff; border:1px solid var(--border); border-radius:16px; padding:16px; display:flex; gap:16px; align-items:center}
+  .q-left{flex:1}
+  .q-title{font-size:calc(var(--base)*1.25); font-weight:900}
+  .q-sub{font-size:calc(var(--base)*0.95); color:var(--muted); margin-top:4px}
+  .status-dot{width:16px; height:16px; border-radius:50%}
+  .s-ok{background:var(--ok)} .s-warn{background:var(--warn)} .s-bad{background:var(--bad)}
+  .mini{padding:12px 18px; border-radius:12px; border:0; font-weight:900; font-size:calc(var(--base)*1.0)}
+  .mini.primary{background:var(--lauresta-primary); color:#fff}
+  .mini.ghost{background:#fff; border:2px solid var(--border)}
+
+  /* Footer quick stats (sticky) */
+  .footer{
+    position:fixed; left:0; right:0; bottom:0; z-index:8; background:#fff; border-top:1px solid var(--border);
+    padding:12px 16px; display:flex; gap:12px; justify-content:space-around;
+  }
+  .fbox{flex:1; text-align:center}
+  .fbox .h{font-size:calc(var(--base)*0.95); color:var(--muted)}
+  .fbox .v{font-size:calc(var(--base)*1.25); font-weight:900}
+
+  /* Keypad modal (bottom sheet) */
+  .modal{position:fixed; inset:0; display:none; align-items:flex-end; background:rgba(0,0,0,.35); z-index:20}
+  .modal.open{display:flex}
+  .sheet{background:#fff; width:100%; max-width:100vw; margin:0 auto; border-radius:20px 20px 0 0; padding:20px}
+  .field{display:flex; gap:12px; align-items:center; margin-bottom:12px}
+  input.big{flex:1; font-size:calc(var(--base)*2.2); font-weight:900; padding:18px; border-radius:16px; border:2px solid var(--border); text-align:right}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:12px}
+  .key{min-height:var(--tap); border-radius:16px; border:0; font-size:calc(var(--base)*1.5); font-weight:900; background:var(--surface-2)}
+  .hint{font-size:calc(var(--base)*0.95); color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">🧵 LKvitai.MES · Fabric Cutting</div>
+      <button class="kiosk-btn" id="btnKiosk">Enter Kiosk</button>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="current">Current</button>
+      <button class="tab" data-tab="queue">Queue</button>
+    </div>
+
+    <div class="content">
+      <!-- CURRENT -->
+      <section id="tab-current">
+        <div class="card">
+          <div class="row between" style="align-items:flex-start">
+            <div>
+              <div class="label">Fabric</div>
+              <div class="value" id="fabric">R432</div>
+              <div class="chips">
+                <span class="badge cut"><strong id="cut-size">580 mm</strong> × <span id="cut-count">7</span></span>
+                <span class="chip" id="orientation">Regular</span>
+                <span class="chip" id="roll">Roll E1-V2 (-41.16 m)</span>
+                <span class="chip" id="due">Due 07.03.2025</span>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="label">Status</div>
+              <div class="value" id="statusText">Waiting</div>
+              <div class="chips" style="justify-content:flex-end; margin-top:12px">
+                <button class="mini ghost" id="btnScan">Scan barcode</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="btnStart">START CUTTING</button>
+            <button class="btn ghost" id="btnEnter">ENTER ACTUAL</button>
+            <button class="btn ok" id="btnDone">DONE</button>
+            <button class="btn accent" id="btnPause">PAUSE</button>
+          </div>
+
+          <div class="kpi">
+            <div class="box"><div class="h">Done</div><div class="v" id="kDone">0</div></div>
+            <div class="box"><div class="h">Remaining</div><div class="v" id="kRem">190</div></div>
+            <div class="box"><div class="h">Cuts (1h)</div><div class="v" id="kCuts">0</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- QUEUE -->
+      <section id="tab-queue" hidden>
+        <div class="q-grid" id="queueList"></div>
+      </section>
+    </div>
+
+    <!-- Footer quick stats -->
+    <div class="footer">
+      <div class="fbox"><div class="h">Queue ≈</div><div class="v" id="fq">0.0 h</div></div>
+      <div class="fbox"><div class="h">Median</div><div class="v" id="fmed">0 sec</div></div>
+      <div class="fbox"><div class="h">Active</div><div class="v" id="fact">0.0%</div></div>
+    </div>
+  </div>
+
+  <!-- Keypad Modal -->
+  <div class="modal" id="modal">
+    <div class="sheet">
+      <div class="field">
+        <div style="font-weight:900">Actual used (mm)</div>
+        <div style="margin-left:auto; display:flex; gap:12px">
+          <button class="mini ghost" id="mMinus">-10</button>
+          <button class="mini ghost" id="mPlus">+10</button>
+        </div>
+      </div>
+      <input class="big" id="actualInput" inputmode="numeric" pattern="[0-9]*" value="580" />
+      <div class="hint">Tap digits or use ±10. Press CONFIRM to save.</div>
+      <div class="keypad" id="keys"></div>
+      <div class="actions" style="margin-top:14px">
+        <button class="btn ghost" id="mCancel">CANCEL</button>
+        <button class="btn ok" id="mOk">CONFIRM</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ===== Simple state (demo) ===== */
+const state = {
+  current: { fabric:'R432', cut:580, count:7, orientation:'Regular', roll:'E1-V2 (-41.16 m)', due:'07.03.2025',
+             status:'Waiting', done:0, remaining:190, hourCuts:0, actual:null },
+  queue: [
+    {id:'RL-8144-25-M', fabric:'R432', cut:580, qty:7, orientation:'Regular', due:'07.03', status:'ok'},
+    {id:'RL-9012-11-S', fabric:'R111', cut:2540, qty:1, orientation:'Reverse', due:'Today', status:'warn'},
+    {id:'RL-7001-05-L', fabric:'R555', cut:1780, qty:3, orientation:'Regular', due:'Tomorrow', status:'ok'},
+    {id:'RL-6200-02-M', fabric:'R432', cut:930, qty:10, orientation:'Regular', due:'Overdue', status:'bad'},
+    {id:'RL-5100-10-X', fabric:'R999', cut:1467, qty:2, orientation:'Reverse', due:'08.03', status:'ok'},
+    {id:'RL-3000-01-A', fabric:'R222', cut:1200, qty:4, orientation:'Regular', due:'10.03', status:'ok'}
+  ]
+};
+
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const setText = (id, v)=> (document.getElementById(id).textContent = v);
+
+/* ===== Render Current ===== */
+function renderCurrent(){
+  setText('fabric', state.current.fabric);
+  setText('cut-size', state.current.cut + ' mm');
+  setText('cut-count', state.current.count);
+  $('#orientation').textContent = state.current.orientation;
+  $('#roll').textContent = 'Roll ' + state.current.roll;
+  $('#due').textContent = 'Due ' + state.current.due;
+  setText('statusText', state.current.status);
+  setText('kDone', state.current.done);
+  setText('kRem', state.current.remaining);
+  setText('kCuts', state.current.hourCuts);
+}
+renderCurrent();
+
+/* ===== Tabs ===== */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const show = t.dataset.tab;
+    document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.hidden = (s.id !== 'tab-'+show));
+  });
+});
+
+/* ===== Queue render ===== */
+function qStatusDot(s){ return `<div class="status-dot ${s==='ok'?'s-ok':s==='warn'?'s-warn':'s-bad'}" title="${s}"></div>`; }
+function renderQueue(){
+  const root = $('#queueList'); root.innerHTML = '';
+  state.queue.forEach(item=>{
+    const el = document.createElement('div');
+    el.className = 'q-card';
+    el.innerHTML = `
+      ${qStatusDot(item.status)}
+      <div class="q-left">
+        <div class="q-title">Cut ${item.cut} mm × ${item.qty}</div>
+        <div class="q-sub">${item.id} · Fabric ${item.fabric} · ${item.orientation} · Due ${item.due}</div>
+      </div>
+      <div style="display:flex;gap:12px">
+        <button class="mini ghost" data-id="${item.id}" data-action="details">DETAILS</button>
+        <button class="mini primary" data-id="${item.id}" data-action="take">TAKE JOB</button>
+      </div>
+    `;
+    root.appendChild(el);
+  });
+}
+renderQueue();
+
+/* ===== Queue actions ===== */
+$('#queueList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-action]'); if(!btn) return;
+  const id = btn.dataset.id; const idx = state.queue.findIndex(q=>q.id===id); if(idx<0) return;
+
+  if(btn.dataset.action==='take'){
+    const job = state.queue.splice(idx,1)[0];
+    state.current.fabric = job.fabric;
+    state.current.cut = job.cut;
+    state.current.count = job.qty;
+    state.current.orientation = job.orientation;
+    state.current.status = 'Waiting';
+    state.current.actual = null;
+    renderCurrent(); renderQueue();
+    document.querySelector('.tab[data-tab="current"]').click();
+  }
+  if(btn.dataset.action==='details'){
+    alert(`Order: ${state.queue[idx].id}\nFabric: ${state.queue[idx].fabric}\nCut: ${state.queue[idx].cut} mm × ${state.queue[idx].qty}`);
+  }
+});
+
+/* ===== Current actions ===== */
+$('#btnStart').addEventListener('click', ()=>{ state.current.status='In progress'; renderCurrent(); });
+$('#btnPause').addEventListener('click', ()=>{ state.current.status='Paused'; renderCurrent(); });
+$('#btnDone').addEventListener('click', ()=>{
+  if(state.current.actual==null){
+    if(!confirm('No actual value entered. Mark as done?')) return;
+  }
+  state.current.status='Done';
+  state.current.done += 1;
+  state.current.remaining = Math.max(0, state.current.remaining - 1);
+  state.current.hourCuts += 1;
+  renderCurrent();
+});
+$('#btnEnter').addEventListener('click', openModal);
+
+/* ===== Barcode (stub / HID-ready) ===== */
+$('#btnScan').addEventListener('click', ()=>{
+  alert('Barcode scan (stub). Integrate camera (getUserMedia + ZXing/Quagga) or listen for HID scanner input.');
+});
+
+/* ===== Keypad modal ===== */
+const modal = $('#modal'); const input = $('#actualInput');
+function openModal(){ input.value = String(state.current.actual ?? state.current.cut); modal.classList.add('open'); input.focus(); }
+$('#mCancel').addEventListener('click', ()=> modal.classList.remove('open'));
+$('#mOk').addEventListener('click', ()=>{
+  const v = parseInt(input.value||'0',10);
+  state.current.actual = isNaN(v)? null : v;
+  state.current.status = 'In progress';
+  modal.classList.remove('open'); renderCurrent();
+});
+$('#mPlus').addEventListener('click', ()=> input.value = String((parseInt(input.value||'0',10) || 0) + 10));
+$('#mMinus').addEventListener('click', ()=> input.value = String(Math.max(0, (parseInt(input.value||'0',10) || 0) - 10)));
+
+/* Build keypad */
+(()=>{
+  const keys = ['1','2','3','4','5','6','7','8','9','←','0','CLR'];
+  const box = document.getElementById('keys');
+  keys.forEach(k=>{
+    const b = document.createElement('button'); b.className='key'; b.textContent=k;
+    b.addEventListener('click', ()=>{
+      if(k==='CLR'){ input.value=''; return; }
+      if(k==='←'){ input.value = input.value.slice(0,-1); return; }
+      input.value += k;
+    });
+    box.appendChild(b);
+  });
+})();
+
+/* ===== Kiosk / Fullscreen ===== */
+const btnKiosk = $('#btnKiosk');
+btnKiosk.addEventListener('click', async ()=>{
+  try{
+    if(!document.fullscreenElement){
+      await document.documentElement.requestFullscreen();
+      btnKiosk.textContent = 'Exit Kiosk';
+      document.body.style.cursor = 'none'; // optional: hide mouse
+    }else{
+      await document.exitFullscreen();
+      btnKiosk.textContent = 'Enter Kiosk';
+      document.body.style.cursor = '';
+    }
+  }catch(e){ alert('Fullscreen not allowed by browser.'); }
+});
+
+/* Optional: autoscale fonts slightly for ultra-wide walls
+   window.addEventListener('resize', ()=>{ document.documentElement.style.setProperty('--base', `${Math.max(18, Math.min(22, innerHeight*0.018))}px`); });
+*/
+</script>
+</body>
+</html>
