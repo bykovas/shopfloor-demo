@@ -9,6 +9,9 @@ import ELK from 'elkjs/lib/elk.bundled.js'
 const any = new ClassicPreset.Socket('any')
 if (!window.__rete) window.__rete = {}
 
+const waitMounted = () =>
+  new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))
+
 function downloadJson(obj, name) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -17,21 +20,35 @@ function downloadJson(obj, name) {
   a.click()
 }
 
-/** Shadow DOM safe coloring: set styles on node host element */
-function colorizeNode(area, node, kind) {
-  const view = area.nodeViews?.get(node.id)
-  const host = view?.element || view?.root || view?.el || null
-  if (!host) return
-  let bg = '#f7fafc', border = '#d9e4f2'
-  if (kind === 'start')  { bg = '#e0f0ff' }           // bright blue
-  if (kind === 'finish') { bg = '#e6fbe6' }           // bright green
-  if (kind === 'task')   { bg = '#fff7e0' }           // light orange/yellow
-  host.style.background = bg
-  host.style.border = `1px solid ${border}`
-  host.style.borderRadius = '12px'
-  host.style.boxShadow = '0 6px 18px rgba(0,0,0,.06)'
+/** High-contrast palettes per node kind */
+const PALETTES = {
+  start:  { bg: '#CFE3FF', border: '#5A8FD8', text: '#2B6CB0' }, // blue
+  finish: { bg: '#C9F3D6', border: '#62B37A', text: '#2F855A' }, // green
+  task:   { bg: '#FFE8B3', border: '#E0A200', text: '#B7791F' }  // orange
 }
 
+/** Shadow DOM safe coloring: wait for mount and style inner ".node" + ".title" */
+async function colorizeNode(area, node, kind) {
+  await waitMounted()
+  const view = area.nodeViews?.get(node.id)
+  const host = view?.element || view?.root || null
+  if (!host) return
+  const box = host.querySelector?.('.node') || host
+
+  const pal = PALETTES[kind] ?? PALETTES.task
+
+  // body
+  box.style.background = pal.bg
+  box.style.border = `1px solid ${pal.border}`
+  box.style.borderRadius = '12px'
+  box.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)'
+
+  // apply text color for all descendants
+  box.style.color = pal.text
+  box.querySelectorAll('*').forEach(el => {
+    el.style.color = pal.text
+  })
+}
 /* ===== Node types ===== */
 
 // Start: only OUT
@@ -47,7 +64,7 @@ class StartNode extends ClassicPreset.Node {
 // Finish: only IN
 class FinishNode extends ClassicPreset.Node {
   width = 420; height = 120
-  constructor(title = 'Product Completed • Print Label') {
+  constructor(title = 'Assemble & Complete Product • Print Label') {
     super(title)
     this._kind = 'finish'
     this.addInput('inp', new ClassicPreset.Input(any, 'flow', true))
@@ -157,16 +174,16 @@ async function setup() {
 
   // Initial: only Start and Finish (no connection)
   const start = new StartNode('Job Received')
-  const finish = new FinishNode('Product Completed • Print Label')
+  const finish = new FinishNode('Assemble & Complete Product • Print Label')
 
   await editor.addNode(start)
   await editor.addNode(finish)
   start.position = [120, 220]
   finish.position = [820, 220]
 
-  // colorize initial nodes
-  colorizeNode(area, start, 'start')
-  colorizeNode(area, finish, 'finish')
+  // colorize initial nodes (after mount)
+  await colorizeNode(area, start, 'start')
+  await colorizeNode(area, finish, 'finish')
 
   await AreaExtensions.zoomAt?.(area, [start, finish])
 
@@ -179,14 +196,16 @@ async function setup() {
     const n = new TaskNode({ title:'Task', taskType:'TASK', wc:'WC' })
     await editor.addNode(n)
     n.position = [(last?.position?.[0]??120)+480, last?.position?.[1]??220]
-    colorizeNode(area, n, 'task')
+    await colorizeNode(area, n, 'task')
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
 
   $('btnAuto').onclick = async () => {
     await arrange.layout?.()
-    // re-apply colors after layout/HMR just in case
-    editor.getNodes().forEach(nd => colorizeNode(area, nd, nd._kind ?? 'task'))
+    // re-apply colors after any DOM churn
+    for (const nd of editor.getNodes()) {
+      await colorizeNode(area, nd, nd._kind ?? 'task')
+    }
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
 
