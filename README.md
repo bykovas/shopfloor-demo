@@ -31,11 +31,6 @@ It demonstrates how Lauresta’s production tech rules and formulas can be repre
 ### Overview
 ![Overview](./docs/demo-overview.png)
 
-### Colored nodes
-![Nodes colored](./docs/nodes-colored.png)
-
-### JSON export
-![JSON export](./docs/json-export.png)
 
 ---
 
