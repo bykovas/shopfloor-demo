@@ -9,6 +9,7 @@ body{
   margin:0;background:var(--bg);color:var(--ink);
   font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial
 }
+
 .topbar{
   position:sticky;top:0;z-index:3;display:flex;gap:.5rem;align-items:center;
   padding:.8rem 1rem;background:var(--paper);border-bottom:1px solid var(--line)
@@ -23,26 +24,26 @@ body{
 .btn.primary:hover{background:var(--brand2);border-color:var(--brand2);color:#110c00}
 .btn.danger{background:#fff1f1;border-color:#ffd0d0;color:#7a0410}
 
-.wrap{display:grid;grid-template-columns:1fr 360px;gap:14px;height:calc(100% - 60px)}
-.canvasWrap{position:relative;background:
-  linear-gradient(90deg,#fafcff 14px,transparent 1px) 0 0/15px 15px,
-  linear-gradient(#fafcff 14px, transparent 1px) 0 0/15px 15px}
+.wrap{
+  display:grid;grid-template-columns:1fr 360px;gap:14px;
+  height:calc(100% - 60px)
+}
+.canvasWrap{
+  position:relative;
+  background:
+    linear-gradient(90deg,#fafcff 14px,transparent 1px) 0 0/15px 15px,
+    linear-gradient(#fafcff 14px, transparent 1px) 0 0/15px 15px
+}
 #rete{position:absolute; inset:0;}
 .side{background:var(--paper);border-left:1px solid var(--line);padding:12px;overflow:auto}
 .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px}
 .panel h3{margin:.2rem 0 .6rem;font-size:1rem}
 .hint{font-size:.82rem;color:var(--ink2)}
 
-/* --- sockets and animated connections --- */
+/* сокеты (если видны) */
 .socket{background:#fff; border:2px solid var(--brand)}
-.connection path{
-  stroke:#9fb3c6; stroke-width:3;
-  stroke-dasharray:8 6; animation:flow 3s linear infinite;
-}
-.connection.selected path{stroke:var(--brand)}
-@keyframes flow { to { stroke-dashoffset:-200 } }
 
-/* controls look (если вернём поля в ноды) */
+/* если когда-то вернём поля в ноды */
 .control{margin:4px 0}
 .control input[type="text"], .control input[type="number"]{
   width:95%; max-width:480px; font:inherit; padding:4px 6px;

@@ -1,4 +1,4 @@
-// Start/Finish + Task nodes; manual auto-layout; animated edges; Shadow-DOM-safe colors; JSON export
+// Start/Finish + Task nodes; manual auto-layout; animated dashed connectors with arrows; Shadow-DOM-safe node colors; JSON export
 import { NodeEditor, ClassicPreset } from 'rete'
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin'
 import { VuePlugin, Presets as VuePresets } from 'rete-vue-plugin'
@@ -20,14 +20,80 @@ function downloadJson(obj, name) {
   a.click()
 }
 
-/** High-contrast palettes per node kind */
+/* ---------- Edge styling & arrowheads (programmatic) ---------- */
+
+function ensureEdgeKeyframes() {
+  if (document.getElementById('rete-edge-anim-style')) return
+  const st = document.createElement('style')
+  st.id = 'rete-edge-anim-style'
+  st.textContent = `@keyframes reteFlow { to { stroke-dashoffset:-200 } }`
+  document.head.appendChild(st)
+}
+
+function ensureSvgArrow(svg, id = 'reteArrow', color = '#7a8896') {
+  if (!svg) return
+  let defs = svg.querySelector('defs')
+  if (!defs) {
+    defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
+    svg.insertBefore(defs, svg.firstChild)
+  }
+  let marker = defs.querySelector(`#${id}`)
+  if (!marker) {
+    marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker')
+    marker.setAttribute('id', id)
+    marker.setAttribute('viewBox', '0 0 10 10')
+    marker.setAttribute('refX', '10') // tip position
+    marker.setAttribute('refY', '5')
+    marker.setAttribute('markerWidth', '7')
+    marker.setAttribute('markerHeight', '7')
+    marker.setAttribute('orient', 'auto-start-reverse')
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    poly.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z')
+    poly.setAttribute('fill', color)
+    poly.setAttribute('stroke', 'none')
+    marker.appendChild(poly)
+    defs.appendChild(marker)
+  } else {
+    const p = marker.querySelector('path')
+    if (p) p.setAttribute('fill', color)
+  }
+  return `url(#${id})`
+}
+
+/** Style a single connection view (its <path>) and add arrow */
+function styleConnectionView(view, opts = {}) {
+  const path = view?.element?.querySelector?.('path')
+  const svg  = view?.element?.closest?.('svg') || view?.element?.ownerSVGElement
+  if (!path) return
+  ensureEdgeKeyframes()
+  const stroke = opts.stroke ?? '#7a8896'        // neutral slate
+  const width  = opts.width  ?? 2                // thinner
+  path.style.stroke = stroke
+  path.style.strokeWidth = String(width)
+  path.style.strokeLinecap = 'round'
+  path.style.strokeDasharray = '10 8'
+  path.style.animation = 'reteFlow 1.8s linear infinite'
+  path.style.opacity = '0.95'
+
+  const markerUrl = ensureSvgArrow(svg, 'reteArrow', stroke)
+  if (markerUrl) path.setAttribute('marker-end', markerUrl)
+}
+
+/** Style all current connections */
+async function styleAllConnections(area) {
+  await waitMounted()
+  if (!area?.connectionViews) return
+  for (const [, view] of area.connectionViews) styleConnectionView(view)
+}
+
+/* ---------- Node colors (high-contrast text) ---------- */
+
 const PALETTES = {
   start:  { bg: '#CFE3FF', border: '#5A8FD8', text: '#2B6CB0' }, // blue
   finish: { bg: '#C9F3D6', border: '#62B37A', text: '#2F855A' }, // green
   task:   { bg: '#FFE8B3', border: '#E0A200', text: '#B7791F' }  // orange
 }
 
-/** Shadow DOM safe coloring: wait for mount and style inner ".node" + ".title" */
 async function colorizeNode(area, node, kind) {
   await waitMounted()
   const view = area.nodeViews?.get(node.id)
@@ -43,13 +109,12 @@ async function colorizeNode(area, node, kind) {
   box.style.borderRadius = '12px'
   box.style.boxShadow = '0 6px 18px rgba(0,0,0,.12)'
 
-  // apply text color for all descendants
+  // text (title, сокеты, подписи, всё внутри)
   box.style.color = pal.text
-  box.querySelectorAll('*').forEach(el => {
-    el.style.color = pal.text
-  })
+  box.querySelectorAll('*').forEach(el => { el.style.color = pal.text })
 }
-/* ===== Node types ===== */
+
+/* ---------- Node types ---------- */
 
 // Start: only OUT
 class StartNode extends ClassicPreset.Node {
@@ -88,14 +153,13 @@ class TaskNode extends ClassicPreset.Node {
     this.addInput('inp', new ClassicPreset.Input(any, 'dependsOn', true))
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
-    this.addControl('taskType',
-      new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'TASK' }))
-    this.addControl('wc',
-      new ClassicPreset.InputControl('text', { initial: init.wc ?? 'WC' }))
+    this.addControl('taskType', new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'TASK' }))
+    this.addControl('wc',       new ClassicPreset.InputControl('text', { initial: init.wc ?? 'WC' }))
   }
 }
 
-/* ===== Export helpers ===== */
+/* ---------- Export helpers ---------- */
+
 function collect(editor, area) {
   const nodes = editor.getNodes().map(n => {
     const kind = n._kind ?? 'task'
@@ -147,7 +211,8 @@ function collect(editor, area) {
   }
 }
 
-/* ===== App ===== */
+/* ---------- App ---------- */
+
 async function setup() {
   try { window.__rete.dispose?.() } catch {}
 
@@ -187,6 +252,17 @@ async function setup() {
 
   await AreaExtensions.zoomAt?.(area, [start, finish])
 
+  // initial edge styling (на случай если что-то уже есть)
+  await styleAllConnections(area)
+
+  // перехватываем события пайпа: стилизуем сразу после изменений
+  editor.addPipe(ctx => {
+    if (ctx && (ctx.type === 'connectioncreated' || ctx.type === 'connectionremoved')) {
+      setTimeout(() => styleAllConnections(area), 0)
+    }
+    return ctx
+  })
+
   const $ = id => document.getElementById(id)
 
   // Add Task — create regular task node, place to the right and colorize
@@ -202,10 +278,9 @@ async function setup() {
 
   $('btnAuto').onclick = async () => {
     await arrange.layout?.()
-    // re-apply colors after any DOM churn
-    for (const nd of editor.getNodes()) {
-      await colorizeNode(area, nd, nd._kind ?? 'task')
-    }
+    // re-apply colors + edges after any DOM churn
+    for (const nd of editor.getNodes()) await colorizeNode(area, nd, nd._kind ?? 'task')
+    await styleAllConnections(area)
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
 
@@ -213,6 +288,7 @@ async function setup() {
     const nodes = editor.getNodes()
     const last = nodes.at(-1)
     if (last) editor.removeNode(last.id)
+    setTimeout(() => styleAllConnections(area), 0)
   }
 
   $('btnExport').onclick = () => downloadJson(collect(editor,area),'tech_rules_export.json')
