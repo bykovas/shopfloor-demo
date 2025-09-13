@@ -1,4 +1,4 @@
-// Lauresta skin demo: Rete v2 + Vue + Connection + AutoArrange (manual) + TaskNode (compact) + JSON export
+// Lauresta skin demo: Start/Finish + Task nodes; manual auto-layout; animated edges; JSON export
 import { NodeEditor, ClassicPreset } from 'rete'
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin'
 import { VuePlugin, Presets as VuePresets } from 'rete-vue-plugin'
@@ -17,16 +17,35 @@ function downloadJson(obj, name) {
   a.click()
 }
 
-// Compact TaskNode: показываем только TaskType и WC.
-// Остальные поля храним в _defaults для экспорта.
-class TaskNode extends ClassicPreset.Node {
-  width = 480
-  height = 0 // выставим ниже из расчёта
+/* ===== Node types ===== */
 
+// Start: only OUT
+class StartNode extends ClassicPreset.Node {
+  width = 420; height = 120
+  constructor(title = 'Job Received') {
+    super(title)
+    this._kind = 'start'
+    this.addOutput('out', new ClassicPreset.Output(any, 'flow'))
+  }
+}
+
+// Finish: only IN
+class FinishNode extends ClassicPreset.Node {
+  width = 420; height = 120
+  constructor(title = 'Product Completed • Print Label') {
+    super(title)
+    this._kind = 'finish'
+    this.addInput('inp', new ClassicPreset.Input(any, 'flow', true))
+  }
+}
+
+// Task: visible TaskType + WC (compact)
+class TaskNode extends ClassicPreset.Node {
+  width = 480; height = 180
   constructor(init = {}) {
     super(init.title ?? (init.taskType ?? 'Task'))
+    this._kind = 'task'
 
-    // дефолты «скрытых» полей
     this._defaults = {
       terminal: !!init.terminal,
       mandatory: init.mandatory ?? true,
@@ -37,40 +56,43 @@ class TaskNode extends ClassicPreset.Node {
     this.addInput('inp', new ClassicPreset.Input(any, 'dependsOn', true))
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
-    // видимые поля
     this.addControl('taskType',
       new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'CUT_FABRIC' }))
     this.addControl('wc',
       new ClassicPreset.InputControl('text', { initial: init.wc ?? 'FAB' }))
-
-    // 🔧 авто-высота ноды по количеству видимых контролов
-    const visibleControls = 2       // taskType + wc
-    const base = 120                // шапка, отступы, сокеты
-    const perRow = 40               // одна строка контрола
-    this.height = base + visibleControls * perRow // ≈ 200px
   }
 }
 
+/* ===== Export helpers ===== */
 function collect(editor, area) {
   const nodes = editor.getNodes().map(n => {
+    const kind = n._kind ?? 'task'
     const defaults = n._defaults ?? {}
+
+    // map common fields safely; start/finish will have minimal data
     const data = {
-      taskType: n.controls.taskType?.value || 'TASK',
-      wc: n.controls.wc?.value || 'WC',
-      terminal: !!(n.controls.terminal?.value ?? defaults.terminal ?? false),
-      kitImpact: Number(n.controls.kitImpact?.value ?? defaults.kitImpact ?? 0),
-      mandatory: !!(n.controls.mandatory?.value ?? defaults.mandatory ?? true),
-      formulasText: n.controls.formulasText?.value ?? defaults.formulasText ?? ''
+      kind,
+      taskType: n.controls?.taskType?.value ?? (kind !== 'task' ? (kind === 'start' ? 'START' : 'FINISH') : 'TASK'),
+      wc: n.controls?.wc?.value ?? (kind !== 'task' ? (kind === 'start' ? 'SYS' : 'SYS') : 'WC'),
+      terminal: !!(n.controls?.terminal?.value ?? defaults.terminal ?? (kind === 'finish')),
+      kitImpact: Number(n.controls?.kitImpact?.value ?? defaults.kitImpact ?? 0),
+      mandatory: !!(n.controls?.mandatory?.value ?? defaults.mandatory ?? true),
+      formulasText: n.controls?.formulasText?.value ?? defaults.formulasText ?? ''
     }
+
     const pos = area.area?.transformations?.get(n.id)?.position ?? n.position ?? [0, 0]
     return { id: n.id, title: n.label, ...data, position: pos }
   })
 
   const edges = editor.getConnections().map(c => ({ from: c.source, to: c.target }))
+
+  // depends by node id
   const depends = {}
   edges.forEach(e => { (depends[e.to] ||= []).push(e.from) })
 
-  const runTasks = nodes.map(n => ({
+  // runtime tasks only for 'task' nodes
+  const taskNodes = nodes.filter(n => n.kind === 'task')
+  const runTasks = taskNodes.map(n => ({
     taskType: n.taskType,
     wc: n.wc,
     isTerminal: n.terminal,
@@ -80,7 +102,7 @@ function collect(editor, area) {
   }))
 
   const formulasByTask = {}
-  nodes.forEach(n => {
+  taskNodes.forEach(n => {
     const map = {}
     ;(n.formulasText || '').split(/\r?\n/).forEach(ln => {
       const m = ln.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.+)$/)
@@ -96,6 +118,7 @@ function collect(editor, area) {
   }
 }
 
+/* ===== App ===== */
 async function setup() {
   try { window.__rete.dispose?.() } catch {}
 
@@ -120,46 +143,41 @@ async function setup() {
     spacing: { nodeNode: 80, nodeEdge: 40, edgeEdge: 20 }
   }))
 
-  // seed
-  const a = new TaskNode({
-    title: 'CUT_FABRIC', taskType: 'CUT_FABRIC', wc: 'FAB',
-    kitImpact: 10, mandatory: true,
-    formulasText: 'fabric_length_mm = CEILING((height_mm + 20) * 1.01, 1)'
-  })
-  const b = new TaskNode({
-    title: 'CUT_PROFILE', taskType: 'CUT_PROFILE', wc: 'PRF',
-    kitImpact: 10, mandatory: true,
-    formulasText: 'tube_length_mm = ROUND(width_mm - 2, 0)'
-  })
-  const c = new TaskNode({
-    title: 'ASM_ROLLER', taskType: 'ASM_ROLLER', wc: 'ASM',
-    terminal: true, kitImpact: 100, mandatory: true
-  })
+  // Initial: only Start and Finish (no connection)
+  const start = new StartNode('Job Received')
+  const finish = new FinishNode('Product Completed • Print Label')
 
-  await editor.addNode(a); await editor.addNode(b); await editor.addNode(c)
-  a.position=[80,180]; b.position=[560,180]; c.position=[1040,180]
-  await editor.addConnection(new ClassicPreset.Connection(a, 'out', c, 'inp'))
-  await editor.addConnection(new ClassicPreset.Connection(b, 'out', c, 'inp'))
-  await AreaExtensions.zoomAt?.(area, [a,b,c])
+  await editor.addNode(start)
+  await editor.addNode(finish)
+
+  start.position = [120, 220]
+  finish.position = [820, 220]
+
+  await AreaExtensions.zoomAt?.(area, [start, finish])
 
   const $ = id => document.getElementById(id)
 
+  // Add Task — create regular task node, place to the right
   $('btnAdd').onclick = async () => {
-    const nodes = editor.getNodes(); const last = nodes.at(-1)
-    const n = new TaskNode({ title:'TASK', taskType:'TASK', wc:'WC' })
+    const nodes = editor.getNodes()
+    const last = nodes.at(-1)
+    const n = new TaskNode({ title:'Task', taskType:'TASK', wc:'WC' })
     await editor.addNode(n)
-    n.position = [(last?.position?.[0]??80)+480, last?.position?.[1]??180]
+    n.position = [(last?.position?.[0]??120)+480, last?.position?.[1]??220]
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
+
   $('btnAuto').onclick = async () => {
     await arrange.layout?.()
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
+
   $('btnDelete').onclick = () => {
     const nodes = editor.getNodes()
     const last = nodes.at(-1)
     if (last) editor.removeNode(last.id)
   }
+
   $('btnExport').onclick = () => downloadJson(collect(editor,area),'tech_rules_export.json')
 
   // HMR cleanup
