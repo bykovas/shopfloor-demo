@@ -1,22 +1,38 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Rete v2 minimal + arrange</title>
-    <style>
-      html, body, #rete { height: 100%; margin: 0; }
-      #toolbar { position: fixed; top: 10px; left: 10px; z-index: 10; display: flex; gap: 8px; }
-      #toolbar button { padding: 6px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      #rete { background: #0f172a; }
-    </style>
-  </head>
-  <body>
-    <div id="toolbar">
-      <button id="btnAdd">+ Node</button>
-      <button id="btnAuto">Auto-arrange</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ShopfloorPilot — Rete.js Tech Rules (Lauresta skin)</title>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand pill">LAURESTA • ShopfloorPilot</div>
+    <div class="pill">Product: <b>ROLLER_STD</b></div>
+    <div style="margin-left:auto;display:flex;gap:.4rem">
+      <button class="btn" id="btnAdd">Add Task</button>
+      <button class="btn" id="btnAuto">Auto layout</button>
+      <button class="btn danger" id="btnDelete">Delete selected</button>
+      <button class="btn primary" id="btnExport">Export JSON</button>
     </div>
-    <div id="rete"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+  </div>
+  <div class="wrap">
+    <div class="canvasWrap">
+      <div id="rete"></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h3>Tips</h3>
+        <div class="hint">
+          • Right-click canvas to add a task.<br/>
+          • Drag from <b>output</b> to <b>input</b> to create dependency.<br/>
+          • Edit <i>Task Type / WC / Terminal / Kit Impact / Mandatory</i> & formulas inside the node.<br/>
+          • <b>Export JSON</b> → graph + runtime.<br/>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
 </html>
