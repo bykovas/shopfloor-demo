@@ -42,10 +42,11 @@ function ensureSvgArrow(svg, id = 'reteArrow', color = '#7a8896') {
     marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker')
     marker.setAttribute('id', id)
     marker.setAttribute('viewBox', '0 0 10 10')
-    marker.setAttribute('refX', '10') // tip position
+    // делаем стрелку толще/крупнее
+    marker.setAttribute('refX', '11')          // позиция кончика
     marker.setAttribute('refY', '5')
-    marker.setAttribute('markerWidth', '7')
-    marker.setAttribute('markerHeight', '7')
+    marker.setAttribute('markerWidth', '12')   // БЫЛО 7
+    marker.setAttribute('markerHeight', '12')  // БЫЛО 7
     marker.setAttribute('orient', 'auto-start-reverse')
     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'path')
     poly.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z')
@@ -56,6 +57,10 @@ function ensureSvgArrow(svg, id = 'reteArrow', color = '#7a8896') {
   } else {
     const p = marker.querySelector('path')
     if (p) p.setAttribute('fill', color)
+    // на случай изменения размеров — обновим
+    marker.setAttribute('markerWidth', '12')
+    marker.setAttribute('markerHeight', '12')
+    marker.setAttribute('refX', '11')
   }
   return `url(#${id})`
 }
@@ -67,12 +72,12 @@ function styleConnectionView(view, opts = {}) {
   if (!path) return
   ensureEdgeKeyframes()
   const stroke = opts.stroke ?? '#7a8896'        // neutral slate
-  const width  = opts.width  ?? 2                // thinner
+  const width  = opts.width  ?? 2                // линия тонкая, стрелка — крупнее маркером
   path.style.stroke = stroke
   path.style.strokeWidth = String(width)
   path.style.strokeLinecap = 'round'
-  path.style.strokeDasharray = '10 8'
-  path.style.animation = 'reteFlow 1.8s linear infinite'
+  path.style.strokeDasharray = '12 10'
+  path.style.animation = 'reteFlow 3s linear infinite' // БЫЛО 1.8s — теперь медленнее
   path.style.opacity = '0.95'
 
   const markerUrl = ensureSvgArrow(svg, 'reteArrow', stroke)
@@ -252,7 +257,7 @@ async function setup() {
 
   await AreaExtensions.zoomAt?.(area, [start, finish])
 
-  // initial edge styling (на случай если что-то уже есть)
+  // initial edge styling (если соединения появятся)
   await styleAllConnections(area)
 
   // перехватываем события пайпа: стилизуем сразу после изменений
