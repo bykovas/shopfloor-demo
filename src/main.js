@@ -1,4 +1,4 @@
-// Lauresta skin demo: Start/Finish + Task nodes; manual auto-layout; animated edges; JSON export
+// Start/Finish + Task nodes; manual auto-layout; animated edges; Shadow-DOM-safe colors; JSON export
 import { NodeEditor, ClassicPreset } from 'rete'
 import { AreaPlugin, AreaExtensions } from 'rete-area-plugin'
 import { VuePlugin, Presets as VuePresets } from 'rete-vue-plugin'
@@ -15,6 +15,21 @@ function downloadJson(obj, name) {
   a.href = URL.createObjectURL(blob)
   a.download = name
   a.click()
+}
+
+/** Shadow DOM safe coloring: set styles on node host element */
+function colorizeNode(area, node, kind) {
+  const view = area.nodeViews?.get(node.id)
+  const host = view?.element || view?.root || view?.el || null
+  if (!host) return
+  let bg = '#f7fafc', border = '#d9e4f2'
+  if (kind === 'start')  { bg = '#e0f0ff' }           // bright blue
+  if (kind === 'finish') { bg = '#e6fbe6' }           // bright green
+  if (kind === 'task')   { bg = '#fff7e0' }           // light orange/yellow
+  host.style.background = bg
+  host.style.border = `1px solid ${border}`
+  host.style.borderRadius = '12px'
+  host.style.boxShadow = '0 6px 18px rgba(0,0,0,.06)'
 }
 
 /* ===== Node types ===== */
@@ -57,9 +72,9 @@ class TaskNode extends ClassicPreset.Node {
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
     this.addControl('taskType',
-      new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'CUT_FABRIC' }))
+      new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'TASK' }))
     this.addControl('wc',
-      new ClassicPreset.InputControl('text', { initial: init.wc ?? 'FAB' }))
+      new ClassicPreset.InputControl('text', { initial: init.wc ?? 'WC' }))
   }
 }
 
@@ -68,18 +83,15 @@ function collect(editor, area) {
   const nodes = editor.getNodes().map(n => {
     const kind = n._kind ?? 'task'
     const defaults = n._defaults ?? {}
-
-    // map common fields safely; start/finish will have minimal data
     const data = {
       kind,
       taskType: n.controls?.taskType?.value ?? (kind !== 'task' ? (kind === 'start' ? 'START' : 'FINISH') : 'TASK'),
-      wc: n.controls?.wc?.value ?? (kind !== 'task' ? (kind === 'start' ? 'SYS' : 'SYS') : 'WC'),
+      wc: n.controls?.wc?.value ?? (kind !== 'task' ? 'SYS' : 'WC'),
       terminal: !!(n.controls?.terminal?.value ?? defaults.terminal ?? (kind === 'finish')),
       kitImpact: Number(n.controls?.kitImpact?.value ?? defaults.kitImpact ?? 0),
       mandatory: !!(n.controls?.mandatory?.value ?? defaults.mandatory ?? true),
       formulasText: n.controls?.formulasText?.value ?? defaults.formulasText ?? ''
     }
-
     const pos = area.area?.transformations?.get(n.id)?.position ?? n.position ?? [0, 0]
     return { id: n.id, title: n.label, ...data, position: pos }
   })
@@ -149,26 +161,32 @@ async function setup() {
 
   await editor.addNode(start)
   await editor.addNode(finish)
-
   start.position = [120, 220]
   finish.position = [820, 220]
+
+  // colorize initial nodes
+  colorizeNode(area, start, 'start')
+  colorizeNode(area, finish, 'finish')
 
   await AreaExtensions.zoomAt?.(area, [start, finish])
 
   const $ = id => document.getElementById(id)
 
-  // Add Task — create regular task node, place to the right
+  // Add Task — create regular task node, place to the right and colorize
   $('btnAdd').onclick = async () => {
     const nodes = editor.getNodes()
     const last = nodes.at(-1)
     const n = new TaskNode({ title:'Task', taskType:'TASK', wc:'WC' })
     await editor.addNode(n)
     n.position = [(last?.position?.[0]??120)+480, last?.position?.[1]??220]
+    colorizeNode(area, n, 'task')
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
 
   $('btnAuto').onclick = async () => {
     await arrange.layout?.()
+    // re-apply colors after layout/HMR just in case
+    editor.getNodes().forEach(nd => colorizeNode(area, nd, nd._kind ?? 'task'))
     await AreaExtensions.zoomAt?.(area, editor.getNodes())
   }
 

@@ -1,12 +1,6 @@
 :root{
   --bg:#ffffff; --paper:#ffffff; --ink:#1a1f24; --ink2:#616b76;
   --brand:#FFAA00; --brand2:#cc8a00; --line:#e8edf3;
-
-  /* node palettes */
-  --node-task:#fff7e0;     /* light orange-yellow */
-  --node-start:#e0f0ff;    /* bright blue */
-  --node-finish:#e6fbe6;   /* bright green */
-
   --node-border:#d9e4f2;
 }
 
@@ -39,30 +33,8 @@ body{
 .panel h3{margin:.2rem 0 .6rem;font-size:1rem}
 .hint{font-size:.82rem;color:var(--ink2)}
 
-/* ===== Rete v2 + Vue preset skin ===== */
-.rete-node{
-  background:#f7fafc; border:1px solid var(--node-border); border-radius:12px;
-  box-shadow:0 6px 18px rgba(0,0,0,.06); padding:6px;
-}
-.rete-node .title{
-  background:transparent; color:var(--ink); border-bottom:1px solid #eef3f8;
-  font-weight:700; padding:4px 6px;
-}
-
-/* Kind detection with :has()
-   - Start: has OUTPUT socket but no INPUT sockets
-   - Finish: has INPUT socket but no OUTPUT sockets
-   - Task: has both INPUT and OUTPUT
-*/
-.rete-node:has(.socket.output):not(:has(.socket.input)) { background: var(--node-start); }
-.rete-node:has(.socket.input):not(:has(.socket.output))  { background: var(--node-finish); }
-.rete-node:has(.socket.input):has(.socket.output)        { background: var(--node-task); }
-
-/* sockets and connections */
+/* --- sockets and animated connections --- */
 .socket{background:#fff; border:2px solid var(--brand)}
-.socket.input{box-shadow:inset 0 0 0 2px rgba(255,170,0,.25)}
-.socket.output{box-shadow:0 0 0 2px rgba(255,170,0,.25)}
-
 .connection path{
   stroke:#9fb3c6; stroke-width:3;
   stroke-dasharray:8 6; animation:flow 3s linear infinite;
@@ -70,11 +42,9 @@ body{
 .connection.selected path{stroke:var(--brand)}
 @keyframes flow { to { stroke-dashoffset:-200 } }
 
-/* Controls inside nodes (if/when shown) */
+/* controls look (если вернём поля в ноды) */
 .control{margin:4px 0}
-.control input[type="text"],
-.control input[type="number"]{
+.control input[type="text"], .control input[type="number"]{
   width:95%; max-width:480px; font:inherit; padding:4px 6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.control input[type="checkbox"]{ width:auto; transform:translateY(1px) }
