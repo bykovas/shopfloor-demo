@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ShopfloorPilot — Rete.js Tech Rules (Lauresta skin)</title>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand pill">LAURESTA • ShopfloorPilot</div>
+    <div class="pill">Product: <b>ROLLER_STD</b></div>
+    <div style="margin-left:auto;display:flex;gap:.4rem">
+      <button class="btn" id="btnAdd">Add Task</button>
+      <button class="btn" id="btnAuto">Auto layout</button>
+      <button class="btn danger" id="btnDelete">Delete selected</button>
+      <button class="btn primary" id="btnExport">Export JSON</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="canvasWrap">
+      <div id="rete"></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h3>Tips</h3>
+        <div class="hint">
+          • Start node: <b>Job Received</b> (only OUT).<br/>
+          • Finish node: <b>Product Completed • Print Label</b> (only IN).<br/>
+          • Add tasks with the button, drag to connect. Connections are animated.<br/>
+          • Export JSON → graph + runtime (tasks only).<br/>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
