@@ -6,6 +6,7 @@ import { ConnectionPlugin, Presets as ConnectionPresets } from 'rete-connection-
 import { AutoArrangePlugin, Presets as ArrangePresets } from 'rete-auto-arrange-plugin'
 import ELK from 'elkjs/lib/elk.bundled.js'
 
+
 const any = new ClassicPreset.Socket('any')
 if (!window.__rete) window.__rete = {}
 
