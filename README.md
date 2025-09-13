@@ -29,7 +29,7 @@ It demonstrates how Lauresta’s production tech rules and formulas can be repre
 ## 🖼️ Preview
 
 ### Overview
-![Overview](./docs/demo-overview.png)
+![Overview](https://raw.githubusercontent.com/bykovas/shopfloor-demo/main/.docs/demo-overview.png)
 
 
 ---
