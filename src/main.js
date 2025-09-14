@@ -42,15 +42,16 @@ function ensureSvgArrow(svg, id = 'reteArrow', color = '#7a8896') {
   if (!marker) {
     marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker')
     marker.setAttribute('id', id)
-    marker.setAttribute('viewBox', '0 0 10 10')
-    // делаем стрелку толще/крупнее
-    marker.setAttribute('refX', '11')          // позиция кончика
-    marker.setAttribute('refY', '5')
-    marker.setAttribute('markerWidth', '12')   // БЫЛО 7
-    marker.setAttribute('markerHeight', '12')  // БЫЛО 7
+    marker.setAttribute('viewBox', '0 0 20 20')
+    marker.setAttribute('refX', '18')                  // подгон кончика
+    marker.setAttribute('refY', '10')
+    marker.setAttribute('markerWidth', '20')           // размер наконечника
+    marker.setAttribute('markerHeight', '20')
+    marker.setAttribute('markerUnits', 'userSpaceOnUse') // не зависит от strokeWidth
     marker.setAttribute('orient', 'auto-start-reverse')
+
     const poly = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    poly.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z')
+    poly.setAttribute('d', 'M 0 0 L 20 10 L 0 20 z')   // острый треугольник
     poly.setAttribute('fill', color)
     poly.setAttribute('stroke', 'none')
     marker.appendChild(poly)
@@ -58,13 +59,15 @@ function ensureSvgArrow(svg, id = 'reteArrow', color = '#7a8896') {
   } else {
     const p = marker.querySelector('path')
     if (p) p.setAttribute('fill', color)
-    // на случай изменения размеров — обновим
-    marker.setAttribute('markerWidth', '12')
-    marker.setAttribute('markerHeight', '12')
-    marker.setAttribute('refX', '11')
+    marker.setAttribute('markerWidth', '20')
+    marker.setAttribute('markerHeight', '20')
+    marker.setAttribute('refX', '18')
+    marker.setAttribute('markerUnits', 'userSpaceOnUse')
   }
   return `url(#${id})`
 }
+
+
 
 /** Style a single connection view (its <path>) and add arrow */
 function styleConnectionView(view, opts = {}) {
@@ -124,7 +127,7 @@ async function colorizeNode(area, node, kind) {
 
 // Start: only OUT
 class StartNode extends ClassicPreset.Node {
-  width = 420; height = 120
+  width = 240; height = 80;
   constructor(title = 'Job Received') {
     super(title)
     this._kind = 'start'
@@ -134,8 +137,8 @@ class StartNode extends ClassicPreset.Node {
 
 // Finish: only IN
 class FinishNode extends ClassicPreset.Node {
-  width = 420; height = 120
-  constructor(title = 'Assemble & Complete Product • Print Label') {
+  width = 240; height = 80
+  constructor(title = 'Assemble Product • Label') {
     super(title)
     this._kind = 'finish'
     this.addInput('inp', new ClassicPreset.Input(any, 'flow', true))
@@ -144,7 +147,7 @@ class FinishNode extends ClassicPreset.Node {
 
 // Task: visible TaskType + WC (compact)
 class TaskNode extends ClassicPreset.Node {
-  width = 480; height = 180
+  width = 280; height = 280
   constructor(init = {}) {
     super(init.title ?? (init.taskType ?? 'Task'))
     this._kind = 'task'
@@ -153,16 +156,22 @@ class TaskNode extends ClassicPreset.Node {
       terminal: !!init.terminal,
       mandatory: init.mandatory ?? true,
       kitImpact: Number(init.kitImpact ?? 10),
-      formulasText: init.formulasText ?? ''
+      formulasText: init.formulasText ?? '',
+      wc: init.wc ?? 'WC'
     }
 
     this.addInput('inp', new ClassicPreset.Input(any, 'dependsOn', true))
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
-    this.addControl('taskType', new ClassicPreset.InputControl('text', { initial: init.taskType ?? 'TASK' }))
-    this.addControl('wc',       new ClassicPreset.InputControl('text', { initial: init.wc ?? 'WC' }))
+    // ✅ correct types + easy labels (labels = control keys)
+    this.addControl('Task type', new ClassicPreset.InputControl('text',   { initial: init.taskType ?? 'CUTTING MACHINE OP' }))
+    this.addControl('Work center', new ClassicPreset.InputControl('text', { initial: this._defaults.wc }))
+    this.addControl('Kit impact', new ClassicPreset.InputControl('number',{ initial: this._defaults.kitImpact, min:0 }))
+    this.addControl('Terminal (Yes/No)', new ClassicPreset.InputControl('checkbox', { initial: this._defaults.terminal }))
+    this.addControl('Mandatory (Yes/No)', new ClassicPreset.InputControl('checkbox', { initial: this._defaults.mandatory }))
   }
 }
+
 
 /* ---------- Export helpers ---------- */
 
@@ -245,7 +254,7 @@ async function setup() {
 
   // Initial: only Start and Finish (no connection)
   const start = new StartNode('Job Received')
-  const finish = new FinishNode('Assemble & Complete Product • Print Label')
+  const finish = new FinishNode('Assemble Product • Label')
 
   await editor.addNode(start)
   await editor.addNode(finish)
