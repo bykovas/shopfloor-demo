@@ -3,31 +3,101 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ShopfloorPilot — Excel-like Formula Editor (Full Demo, Fixed)</title>
+<title>ShopfloorPilot — Excel-like Formula Editor (Lauresta skin, Full Demo)</title>
+
+<!-- Monaco core CSS -->
+<link rel="stylesheet" href="https://unpkg.com/monaco-editor@0.45.0/min/vs/editor/editor.main.css">
+
 <style>
-  :root{ --line:#e6ecf2; --brand:#FFAA00; --ok:#12805c; --err:#d92d20; --muted:#66707d; }
-  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  /* ===== Lauresta skin / design tokens ===== */
+  :root{
+    --bg:#ffffff; --paper:#ffffff;
+    --ink:#1a1f24; --ink2:#616b76; --muted:#66707d;
+    --brand:#FFAA00; --brand-hover:#cc8a00;
+    --line:#e8edf3; --line-2:#eef2f7;
+    --ok:#12805c; --err:#d92d20;
+    --chip:#fff7e6; --chip-border:#ffd782;
+    --hint:#f7fafc; --hint-border:#e6ecf2;
+  }
+
+  /* ===== Base ===== */
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+
   .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
-  h1{font-size:1.3rem;margin:0 0 6px}
-  .sub{color:var(--muted);margin-bottom:12px}
+  h1{font-size:1.25rem;margin:0 0 6px;font-weight:800;letter-spacing:.2px}
+  .sub{color:var(--ink2);margin-bottom:12px}
+
+  /* ===== Layout ===== */
   .grid{display:grid;grid-template-columns: 2fr 1fr; gap:16px}
-  .card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  .card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper)}
   #editor{height:420px}
-  .toolbar{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid var(--line)}
-  button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
-  button:hover{background:#fff7e6;border-color:#ffd782}
-  .primary{background:#FFAA00;border-color:#FFAA00}
+  .toolbar{
+    display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid var(--line);background:var(--paper)
+  }
+  button{
+    border:1px solid var(--line);background:#fff;border-radius:.55rem;padding:.45rem .75rem;cursor:pointer;font:inherit
+  }
+  button:hover{border-color:var(--chip-border);background:var(--chip)}
+  .primary{background:var(--brand);border-color:var(--brand);color:#1b1400}
+  .primary:hover{background:var(--brand-hover);border-color:var(--brand-hover);color:#110c00}
   .status{margin-left:auto;font-size:.9rem}
   .status.ok{color:var(--ok)} .status.err{color:var(--err)}
-  .preview{margin-top:12px;background:#fffaf1;border:1px solid #ffe0ad;border-radius:12px;padding:10px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap}
-  .ref{border:1px solid var(--line);border-radius:12px;background:#fff; padding:10px}
-  .ref h2{margin:4px 0 8px;font-size:1rem}
-  .ref .box{margin-bottom:12px}
-  .ref input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px}
-  .row{padding:6px 8px;border:1px solid #eee;border-radius:8px;margin:6px 0;cursor:pointer}
-  .row:hover{background:#fff7e6;border-color:#ffd782}
+
+  .preview{
+    margin:12px;border:1px solid #ffe0ad;background:#fffaf1;border-radius:12px;padding:10px;
+    font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap
+  }
+
+  /* ===== Right reference panel ===== */
+  .ref{
+    border:1px solid var(--line);border-radius:12px;background:var(--paper); padding:12px
+  }
+  .ref h2{margin:4px 0 10px;font-size:1rem;font-weight:800;letter-spacing:.2px}
+  .ref .box{margin-bottom:14px}
   .mono{font-family:ui-monospace,Consolas,monospace}
-  .help{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f7fafc}
+
+  /* Search inputs: visually prominent (pill) */
+  .search{
+    display:flex;align-items:center;gap:.5rem;
+    padding:.55rem .75rem;border:1px solid var(--brand);background:#fff;border-radius:999px;
+    box-shadow:0 0 0 2px rgba(255,170,0,.08) inset;
+  }
+  .search svg{width:16px;height:16px;flex:0 0 16px;opacity:.9}
+  .search input{
+    width:100%;border:0;outline:none;font:inherit;color:var(--ink);
+  }
+  .search input::placeholder{color:#9aa4b2}
+
+  .search:focus-within{
+    border-color:var(--brand-hover);
+    box-shadow:0 0 0 3px rgba(255,170,0,.18) inset;
+  }
+
+  /* Result rows: subdued (less visual weight) */
+  .list{margin-top:8px;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .row{
+    padding:8px 10px;border-bottom:1px solid var(--line-2);cursor:pointer;
+    font-size:.92rem;background:#fff;
+  }
+  .row:last-child{border-bottom:0}
+  .row b{font-weight:600}
+  .row small{color:#8892a0}
+  .row:hover{background:#fffdf6}
+
+  /* Help panel */
+  .help{
+    margin-top:18px;padding:12px;border:1px solid var(--hint-border);
+    border-radius:12px;background:var(--hint)
+  }
+  .help code{background:#fff;border:1px solid var(--line);padding:.05rem .25rem;border-radius:.35rem}
+
+  /* Small utilities */
+  .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .6rem;border:1px solid var(--line);border-radius:999px;background:#fff}
 </style>
 </head>
 <body>
@@ -39,12 +109,14 @@
     <!-- LEFT: Editor -->
     <div class="card">
       <div id="editor"></div>
+
       <div class="toolbar">
         <button id="btnPreview">Preview</button>
         <button id="btnClear">Clear</button>
         <button id="btnCopy" class="primary">Copy</button>
         <div id="status" class="status">Ready</div>
       </div>
+
       <div id="preview" class="preview">Preview will appear here…</div>
     </div>
 
@@ -54,20 +126,30 @@
 
       <div class="box">
         <b>Functions</b>
-        <input id="fsearch" placeholder="Search functions…"/>
-        <div id="flist" class="mono" style="max-height:160px;overflow:auto"></div>
+        <div class="search" title="Search functions">
+          <!-- search icon -->
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-3.9-3.9M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="fsearch" placeholder="Search functions…"/>
+        </div>
+        <div id="flist" class="list mono"></div>
       </div>
 
       <div class="box">
         <b>Variables</b>
-        <input id="vsearch" placeholder="Search variables…" style="width: -webkit-fill-available;"/>
-        <div id="vlist" class="mono" style="max-height:160px;overflow:auto"></div>
+        <div class="search" title="Search variables">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-3.9-3.9M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="vsearch" placeholder="Search variables…"/>
+        </div>
+        <div id="vlist" class="list mono"></div>
       </div>
 
       <div class="box">
         <b>Options (options.*)</b>
-        <input id="osearch" placeholder="Search options…" style="width: -webkit-fill-available;"/>
-        <div id="olist" class="mono" style="max-height:220px;overflow:auto"></div>
+        <div class="search" title="Search options">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-3.9-3.9M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="osearch" placeholder="Search options…"/>
+        </div>
+        <div id="olist" class="list mono" style="max-height:220px"></div>
       </div>
     </div>
   </div>
@@ -153,56 +235,58 @@
         [/[=+\-*/<>(),]/, 'operator']
       ]}
     });
+
+    /* Theme with required base colors (prevents foreground errors) */
     monaco.editor.defineTheme('formulaLight', {
-    base: 'vs',
-    inherit: true,
-    rules: [
+      base: 'vs',
+      inherit: true,
+      rules: [
         { token:'identifier',       foreground:'2563EB' },
         { token:'type.identifier',  foreground:'0EA5E9', fontStyle:'bold' },
         { token:'number',           foreground:'7C3AED' },
         { token:'string',           foreground:'A16207' },
         { token:'comment',          foreground:'8A94A3', fontStyle:'italic' }
-    ],
-    // ВАЖНО: задаём базовые цвета, иначе Monaco ищет их и падает
-    colors: {
-        'editor.foreground':            '#1F2937',
-        'editor.background':            '#FFFFFF',
-        'editorLineNumber.foreground':  '#9AA4B2',
-        'editorCursor.foreground':      '#111827',
-        'editor.selectionBackground':   '#C7D2FE',
-        'editor.inactiveSelectionBackground': '#E5E7EB',
-        'editorLineNumber.activeForeground':  '#374151'
-    }
+      ],
+      colors: {
+        'editor.foreground': '#1F2937',
+        'editor.background': '#FFFFFF',
+        'editorLineNumber.foreground': '#9AA4B2',
+        'editorLineNumber.activeForeground':'#374151',
+        'editorCursor.foreground': '#111827',
+        'editor.selectionBackground': '#C7D2FE',
+        'editor.inactiveSelectionBackground': '#E5E7EB'
+      }
     });
 
     /* ---- Create editor ---- */
     const editor = monaco.editor.create(document.getElementById('editor'), {
-        value: `// Example formulas
-        fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
-        tube_length_mm   = =ROUND(width_mm - 2, 0)
-        cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0), 1)
-        safety_needed    = =IF(options.child_safety, TRUE, FALSE)
-        // Units demo:
-        extra_wrap_mm    = =MM(options.extra_wrap_mm) + CM(2.5) + M(0.003)
-        `,
-        language: 'formula',
-        automaticLayout: true,
-        minimap: { enabled:false },
-        scrollBeyondLastLine: false,
-        fontLigatures: false
+      value:
+`// Example formulas
+fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
+tube_length_mm   = =ROUND(width_mm - 2, 0)
+cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0), 1)
+safety_needed    = =IF(options.child_safety, TRUE, FALSE)
+// Units demo:
+extra_wrap_mm    = =MM(options.extra_wrap_mm) + CM(2.5) + M(0.003)
+`,
+      language: 'formula',
+      automaticLayout: true,
+      minimap: { enabled:false },
+      scrollBeyondLastLine: false,
+      fontLigatures: false
     });
 
     monaco.editor.setTheme('formulaLight');
 
-    /* ---- Grab DOM refs EARLY (fix) ---- */
-    const status  = document.getElementById('status');
-    const previewEl = document.getElementById('preview');
-    const flist = document.getElementById('flist');
-    const vlist = document.getElementById('vlist');
-    const olist = document.getElementById('olist');
-    const fsearch = document.getElementById('fsearch');
-    const vsearch = document.getElementById('vsearch');
-    const osearch = document.getElementById('osearch');
+    /* ---- DOM refs ---- */
+    const status   = document.getElementById('status');
+    const previewEl= document.getElementById('preview');
+    const flist    = document.getElementById('flist');
+    const vlist    = document.getElementById('vlist');
+    const olist    = document.getElementById('olist');
+    const fsearch  = document.getElementById('fsearch');
+    const vsearch  = document.getElementById('vsearch');
+    const osearch  = document.getElementById('osearch');
 
     /* ---- Completion (vars, options.*, funcs, snippet 'opt') ---- */
     monaco.languages.registerCompletionItemProvider('formula', {
@@ -333,8 +417,8 @@
     /* ---- Reference panel render/search ---- */
     function rowHtml(x){ return `
       <div class="row" data-insert="${x.name}${x.sig?'()':''}">
-        <div><b>${x.name}</b> ${x.sig?`<span style="color:#8892a0">— ${x.sig}</span>`:''}</div>
-        <div style="color:#8892a0">${x.desc || ''}</div>
+        <div><b>${x.name}</b> ${x.sig?`<small>— ${x.sig}</small>`:''}</div>
+        <div><small>${x.desc || ''}</small></div>
       </div>`; }
     function renderList(el, arr){ el.innerHTML = arr.map(a=>rowHtml(a)).join(''); }
     function bindClicks(el){
