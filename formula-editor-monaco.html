@@ -3,17 +3,16 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ShopfloorPilot — Formula Editor (Monaco, no imports)</title>
+<title>ShopfloorPilot — Excel-like Formula Editor (Full Demo)</title>
 <style>
-  :root{
-    --line:#e6ecf2; --brand:#FFAA00; --ok:#12805c; --err:#d92d20;
-  }
+  :root{ --line:#e6ecf2; --brand:#FFAA00; --ok:#12805c; --err:#d92d20; --muted:#66707d; }
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
-  .wrap{max-width:1060px;margin:28px auto;padding:0 16px}
-  h1{font-size:1.2rem;margin:0 0 8px}
-  .hint{color:#66707d;font-size:.92rem;margin-bottom:12px}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+  h1{font-size:1.3rem;margin:0 0 6px}
+  .sub{color:var(--muted);margin-bottom:12px}
+  .grid{display:grid;grid-template-columns: 2fr 1fr; gap:16px}
   .card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
-  #editor{height:360px}
+  #editor{height:420px}
   .toolbar{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid var(--line)}
   button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
   button:hover{background:#fff7e6;border-color:#ffd782}
@@ -21,67 +20,134 @@
   .status{margin-left:auto;font-size:.9rem}
   .status.ok{color:var(--ok)} .status.err{color:var(--err)}
   .preview{margin-top:12px;background:#fffaf1;border:1px solid #ffe0ad;border-radius:12px;padding:10px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap}
+  .ref{border:1px solid var(--line);border-radius:12px;background:#fff; padding:10px}
+  .ref h2{margin:4px 0 8px;font-size:1rem}
+  .ref .box{margin-bottom:12px}
+  .ref input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px}
+  .row{padding:6px 8px;border:1px solid #eee;border-radius:8px;margin:6px 0;cursor:pointer}
+  .row:hover{background:#fff7e6;border-color:#ffd782}
+  .mono{font-family:ui-monospace,Consolas,monospace}
   .help{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f7fafc}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Excel-like Formula Editor (Monaco demo)</h1>
-  <div class="hint">Format: <code>key = =EXPR</code>. Try: <code>fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)</code></div>
+  <h1>Excel-like Formula Editor — Full Demo</h1>
+  <div class="sub">Format: <code>key = =EXPR</code>. Try: <code>fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)</code></div>
 
-  <div class="card">
-    <div id="editor"></div>
-    <div class="toolbar">
-      <button id="btnPreview">Preview</button>
-      <button id="btnClear">Clear</button>
-      <button id="btnCopy" class="primary">Copy</button>
-      <div id="status" class="status">Ready</div>
+  <div class="grid">
+    <!-- LEFT: Editor -->
+    <div class="card">
+      <div id="editor"></div>
+      <div class="toolbar">
+        <button id="btnPreview">Preview</button>
+        <button id="btnClear">Clear</button>
+        <button id="btnCopy" class="primary">Copy</button>
+        <div id="status" class="status">Ready</div>
+      </div>
+      <div id="preview" class="preview">Preview will appear here…</div>
+    </div>
+
+    <!-- RIGHT: Reference -->
+    <div class="ref">
+      <h2>Reference</h2>
+
+      <div class="box">
+        <b>Functions</b>
+        <input id="fsearch" placeholder="Search functions…"/>
+        <div id="flist" class="mono" style="max-height:160px;overflow:auto"></div>
+      </div>
+
+      <div class="box">
+        <b>Variables</b>
+        <input id="vsearch" placeholder="Search variables…"/>
+        <div id="vlist" class="mono" style="max-height:160px;overflow:auto"></div>
+      </div>
+
+      <div class="box">
+        <b>Options (options.*)</b>
+        <input id="osearch" placeholder="Search options…"/>
+        <div id="olist" class="mono" style="max-height:220px;overflow:auto"></div>
+      </div>
     </div>
   </div>
-
-  <div id="preview" class="preview">Preview will appear here…</div>
 
   <div class="help">
     <b>What this demo can do:</b>
     <ul>
-      <li>Excel-like lines: <code>key = =EXPR</code></li>
-      <li>Autocomplete <kbd>Ctrl/⌘+Space</kbd> for variables, functions, units</li>
-      <li>Hover hints (signatures, descriptions)</li>
-      <li>Lint: unknown identifiers, unbalanced parentheses</li>
-      <li>Preview: evaluates with sample inputs (width=1750, height=2200, cassette=true)</li>
+      <li><b>Excel-like lines:</b> <code>key = =EXPR</code></li>
+      <li><b>IntelliSense:</b> <kbd>Ctrl/⌘+Space</kbd> — functions, variables, <code>options.*</code>; набери <b>opt</b> → сниппет <code>options.</code></li>
+      <li><b>Hover:</b> наведи на <code>IF</code>, <code>ROUND</code>, <code>width_mm</code>, <code>options.cassette</code> — описание и сигнатуры</li>
+      <li><b>Signature Help:</b> при вводе <code>ROUND(</code>, <code>IF(</code>, <code>CEILING(</code> — подсказка параметров</li>
+      <li><b>Lint:</b> подсветка ошибок (неизвестные идентификаторы, несбалансированные скобки)</li>
+      <li><b>Preview:</b> вычисляет формулы на демо-данных (width=1750, height=2200, cassette=true, см. ниже)</li>
+      <li><b>Reference panel:</b> поиск и клик для вставки шаблонов функций/переменных/опций</li>
     </ul>
+    <div><b>Variable descriptions:</b>
+      <ul>
+        <li><code>width_mm</code> — Product width in millimeters (integer)</li>
+        <li><code>height_mm</code> — Product height in millimeters (integer)</li>
+        <li><code>qty</code> — Item quantity (number)</li>
+        <li><code>material</code> — Material code (string)</li>
+      </ul>
+    </div>
   </div>
 </div>
 
-<!-- Monaco (VS Code editor) via AMD loader, no ESM imports -->
+<!-- Monaco (VS Code editor) via AMD loader -->
 <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
 <script>
-  // Demo dictionary (hardcoded)
+  // ======== Dictionary (hardcoded for demo) ========
   const VARS = [
-    { name:'width_mm', desc:'Product width (mm)' },
-    { name:'height_mm',desc:'Product height (mm)' },
-    { name:'qty',      desc:'Item quantity' },
-    { name:'material', desc:'Material code' },
-    { name:'options.cassette', desc:'Cassette option (bool)' }
+    { name:'width_mm',    desc:'Product width (mm)' },
+    { name:'height_mm',   desc:'Product height (mm)' },
+    { name:'qty',         desc:'Item quantity' },
+    { name:'material',    desc:'Material code' }
   ];
-  const FUNCS = [
-    { name:'ROUND',   sig:'ROUND(number,digits)', desc:'Round to given digits' },
-    { name:'CEILING', sig:'CEILING(number,significance)', desc:'Round up to nearest significance' },
-    { name:'FLOOR',   sig:'FLOOR(number,significance)',   desc:'Round down to nearest significance' },
-    { name:'IF',      sig:'IF(condition,a,b)',    desc:'Conditional' },
-    { name:'AND',     sig:'AND(a,b,...)',         desc:'Logical AND' },
-    { name:'OR',      sig:'OR(a,b,...)',          desc:'Logical OR' },
-    { name:'NOT',     sig:'NOT(x)',               desc:'Logical NOT' },
-    { name:'MM',      sig:'MM(x)',                desc:'To millimeters' },
-    { name:'CM',      sig:'CM(x)',                desc:'cm → mm' },
-    { name:'M',       sig:'M(x)',                 desc:'m → mm' }
-  ];
-  const KNOWN = new Set([...VARS.map(v=>v.name), ...FUNCS.map(f=>f.name), 'TRUE','FALSE']);
 
-  // Monaco setup
+  // Options.* — расширенный список для автодополнения
+  const OPTS = [
+    { name:'options.cassette',           desc:'Use cassette (bool)' },
+    { name:'options.motorized',          desc:'Motorized drive (bool)' },
+    { name:'options.remote_channels',    desc:'Remote control channels (number)' },
+    { name:'options.chain_ratio',        desc:'Chain gear ratio, e.g. "4:1"' },
+    { name:'options.control_side',       desc:'Control side: "left"|"right"' },
+    { name:'options.side',               desc:'Install side: "in"|"out"|"recess"' },
+    { name:'options.mount_type',         desc:'Mount type: "wall"|"ceiling"|"frame"' },
+    { name:'options.bracket_type',       desc:'Bracket type code' },
+    { name:'options.tube_diameter',      desc:'Tube diameter in mm (number)' },
+    { name:'options.bottom_bar',         desc:'Bottom bar model code' },
+    { name:'options.color',              desc:'Color name/code' },
+    { name:'options.valance',            desc:'Decorative valance (bool)' },
+    { name:'options.child_safety',       desc:'Child safety option (bool)' },
+    { name:'options.extra_wrap_mm',      desc:'Extra wrap length (mm) (number)' },
+    { name:'options.fabric',             desc:'Fabric code' },
+    { name:'options.fabric_thickness_mm',desc:'Fabric thickness in mm (number)' },
+    { name:'options.opening',            desc:'Opening direction or % (string/number)' }
+  ];
+
+  const FUNCS = [
+    { name:'ROUND',   sig:'ROUND(number, digits)',           desc:'Round to given digits' },
+    { name:'CEILING', sig:'CEILING(number, significance)',   desc:'Round up to nearest significance' },
+    { name:'FLOOR',   sig:'FLOOR(number, significance)',     desc:'Round down to nearest significance' },
+    { name:'IF',      sig:'IF(condition, a, b)',             desc:'Conditional' },
+    { name:'AND',     sig:'AND(a, b, ...)',                  desc:'Logical AND' },
+    { name:'OR',      sig:'OR(a, b, ...)',                   desc:'Logical OR' },
+    { name:'NOT',     sig:'NOT(x)',                          desc:'Logical NOT' },
+    { name:'MM',      sig:'MM(x)',                           desc:'To millimeters (identity)', note:'Unit helper' },
+    { name:'CM',      sig:'CM(x)',                           desc:'Centimeters → mm (×10)',   note:'Unit helper' },
+    { name:'M',       sig:'M(x)',                            desc:'Meters → mm (×1000)',     note:'Unit helper' }
+  ];
+
+  const KNOWN = new Set(
+    [...VARS, ...OPTS].map(x=>x.name)
+    .concat(FUNCS.map(f=>f.name))
+    .concat(['TRUE','FALSE'])
+  );
+
+  // ======== Monaco setup ========
   require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' }});
   window.MonacoEnvironment = { getWorkerUrl: function () {
-    // inline worker (works for file:// and http)
     const code = `
       self.MonacoEnvironment = { baseUrl: 'https://unpkg.com/monaco-editor@0.45.0/min/' };
       importScripts('https://unpkg.com/monaco-editor@0.45.0/min/vs/base/worker/workerMain.js');
@@ -90,18 +156,16 @@
   }};
 
   require(['vs/editor/editor.main'], function () {
-    // Register custom language "formula"
     monaco.languages.register({ id: 'formula' });
 
-    // Monarch tokens (simple)
+    // Monarch tokenizer
     monaco.languages.setMonarchTokensProvider('formula', {
       tokenizer: {
         root: [
           [/\/\/.*$/, 'comment'],
-          [/"[^"]*"/, 'string'],
-          [/'[^']*'/, 'string'],
+          [/"[^"]*"/, 'string'], [/'[^']*'/, 'string'],
           [/\b\d+(\.\d+)?\b/, 'number'],
-          [/\b(ROUND|CEILING|FLOOR|IF|AND|OR|NOT|MM|CM|M)\b/, 'type.identifier'], // functions
+          [/\b(ROUND|CEILING|FLOOR|IF|AND|OR|NOT|MM|CM|M)\b/, 'type.identifier'],
           [/\b(TRUE|FALSE)\b/, 'keyword'],
           [/[A-Za-z_][A-Za-z0-9_.]*/, 'identifier'],
           [/[=+\-*/<>(),]/, 'operator']
@@ -109,12 +173,12 @@
       }
     });
 
-    // Theme tweaks
+    // Theme
     monaco.editor.defineTheme('formulaLight', {
       base: 'vs', inherit: true,
       rules: [
-        { token:'identifier', foreground:'2563eb' },
-        { token:'type.identifier', foreground:'0ea5e9', fontStyle:'bold' },
+        { token:'identifier', foreground:'2563eb' },         // variables
+        { token:'type.identifier', foreground:'0ea5e9', fontStyle:'bold' }, // functions
         { token:'number', foreground:'7c3aed' },
         { token:'string', foreground:'a16207' },
         { token:'comment', foreground:'8a94a3', fontStyle:'italic' }
@@ -122,35 +186,92 @@
       colors: {}
     });
 
-    // Completion (Ctrl/Cmd+Space)
+    // Completion (variables, options.*, functions, snippet "opt" -> "options.")
     monaco.languages.registerCompletionItemProvider('formula', {
       triggerCharacters: ['.', '_'],
-      provideCompletionItems: function(model, position) {
+      provideCompletionItems(model, position) {
         const suggestions = [];
+
+        // VARS
         VARS.forEach(v => suggestions.push({
           label: v.name, kind: monaco.languages.CompletionItemKind.Variable,
           insertText: v.name, detail:'var', documentation: v.desc
         }));
+        // OPTS (options.*)
+        OPTS.forEach(o => suggestions.push({
+          label: o.name, kind: monaco.languages.CompletionItemKind.Property,
+          insertText: o.name, detail:'option', documentation: o.desc
+        }));
+        // FUNCTIONS
         FUNCS.forEach(f => suggestions.push({
           label: f.name, kind: monaco.languages.CompletionItemKind.Function,
           insertText: f.name + '()', detail: f.sig || 'fn', documentation: f.desc,
-          command: { id: 'cursorLeft', title: 'pos' } // put caret inside ()
+          command: { id: 'cursorLeft', title: 'pos' }
         }));
+
+        // Snippet: "opt" -> "options."
+        suggestions.push({
+          label: 'opt',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: 'options.',
+          documentation: 'Insert options.* prefix',
+          detail: 'snippet'
+        });
+
         return { suggestions };
       }
     });
 
-    // Hover hints
+    // Hover provider (описания)
     monaco.languages.registerHoverProvider('formula', {
-      provideHover: function(model, position) {
+      provideHover(model, position) {
         const word = model.getWordAtPosition(position);
         if (!word) return null;
         const w = word.word;
         const v = VARS.find(x=>x.name===w);
         if (v) return { contents: [{value: `**${v.name}** — ${v.desc}`}] };
+        const o = OPTS.find(x=>x.name===w);
+        if (o) return { contents: [{value: `**${o.name}** — ${o.desc}`} ] };
         const f = FUNCS.find(x=>x.name===w);
-        if (f) return { contents: [{value: `**${f.name}**\n\n\`${f.sig||''}\`\n\n${f.desc}`}] };
+        if (f) {
+          let note = f.note ? `\n\n_${f.note}_` : '';
+          return { contents: [{value: `**${f.name}**\n\n\`${f.sig||''}\`\n\n${f.desc}${note}`}] };
+        }
         return null;
+      }
+    });
+
+    // Signature Help (как в Excel)
+    const SIGS = Object.fromEntries(FUNCS.map(f => [f.name, {
+      label: f.sig || f.name, params: (f.sig||'').split('(')[1]?.replace(')','').split(',').map(s=>s.trim()).filter(Boolean) || [], doc: f.desc
+    }]));
+
+    monaco.languages.registerSignatureHelpProvider('formula', {
+      signatureHelpTriggerCharacters: ['(', ','],
+      provideSignatureHelp(model, position) {
+        const line = model.getLineContent(position.lineNumber);
+        const left = line.slice(0, position.column - 1);
+        const m = left.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\(([^()]*)$/);
+        if (!m) return null;
+        const fn = m[1];
+        const sig = SIGS[fn];
+        if (!sig) return null;
+
+        const argsSoFar = m[2];
+        const activeParam = Math.max(0, Math.min(argsSoFar.split(',').length - 1, (sig.params.length || 1) - 1));
+
+        return {
+          value: {
+            signatures: [{
+              label: sig.label,
+              documentation: sig.doc,
+              parameters: (sig.params.length? sig.params : ['value']).map(p => ({ label: p }))
+            }],
+            activeSignature: 0,
+            activeParameter: activeParam
+          },
+          dispose() {}
+        };
       }
     });
 
@@ -160,33 +281,29 @@
       const text = model.getValue().replace(/\r/g,'');
       const lines = text.split('\n');
       const markers = [];
-      let offset = 0;
 
       for (let i=0;i<lines.length;i++) {
         const raw = lines[i];
         const trimmed = raw.trim();
-        if (!trimmed || trimmed.startsWith('//')) { offset += raw.length+1; continue; }
+        if (!trimmed || trimmed.startsWith('//')) continue;
 
         const m = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
         if (!m) {
           markers.push({ startLineNumber:i+1, startColumn:1, endLineNumber:i+1, endColumn:raw.length+1,
             message:'Expected: key = =EXPR', severity: monaco.MarkerSeverity.Warning });
-          offset += raw.length+1; continue;
+          continue;
         }
 
         const expr = m[2];
         // parentheses
         let bal=0, err=false;
-        for (const ch of expr) {
-          if (ch==='(') bal++;
-          else if (ch===')') { bal--; if (bal<0){ err=true; break; } }
-        }
+        for (const ch of expr) { if (ch==='(') bal++; else if (ch===')') { bal--; if (bal<0){ err=true; break; } } }
         if (bal!==0 || err) {
           markers.push({ startLineNumber:i+1, startColumn:raw.indexOf(expr)+1, endLineNumber:i+1, endColumn:raw.length+1,
             message:'Unbalanced parentheses', severity: monaco.MarkerSeverity.Error });
         }
 
-        // unknown identifiers (mask strings & numbers first)
+        // unknown ids (mask strings & numbers first)
         const masked = expr.replace(/"[^"]*"|'[^']*'/g,'""').replace(/\b\d+(\.\d+)?\b/g,'0');
         const ids = masked.split(/[^A-Za-z0-9_.]+/).filter(Boolean);
         ids.forEach(id=>{
@@ -196,8 +313,6 @@
               message:`Unknown identifier: ${id}`, severity: monaco.MarkerSeverity.Error });
           }
         });
-
-        offset += raw.length+1;
       }
 
       monaco.editor.setModelMarkers(model, 'formula-lint', markers);
@@ -209,10 +324,13 @@
     // Create editor
     const editor = monaco.editor.create(document.getElementById('editor'), {
       value:
-`fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
+`// Example formulas
+fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
 tube_length_mm   = =ROUND(width_mm - 2, 0)
-// comment
-cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0),1)
+cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0), 1)
+safety_needed    = =IF(options.child_safety, TRUE, FALSE)
+// Units demo:
+extra_wrap_mm    = =MM(options.extra_wrap_mm) + CM(2.5) + M(0.003)
 `,
       language: 'formula',
       theme: 'formulaLight',
@@ -222,13 +340,59 @@ cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(option
       fontLigatures: false
     });
 
-    editor.onDidChangeModelContent(() => validate());
+    editor.onDidChangeModelContent(validate);
     validate();
+
+    // Reference panel render
+    const flist = document.getElementById('flist');
+    const vlist = document.getElementById('vlist');
+    const olist = document.getElementById('olist');
+
+    function rowHtml(x, sub){ return `
+      <div class="row" data-insert="${x.name}${x.sig?'()':''}">
+        <div><b>${x.name}</b> ${x.sig?`<span style="color:#8892a0">— ${x.sig}</span>`:''}</div>
+        <div style="color:#8892a0">${sub || x.desc || ''}</div>
+      </div>`; }
+
+    function renderList(el, arr){ el.innerHTML = arr.map(a=>rowHtml(a)).join(''); }
+    function bindClicks(el){
+      el.querySelectorAll('.row').forEach(r=>{
+        r.addEventListener('click', ()=>{
+          const text = r.getAttribute('data-insert');
+          editor.executeEdits("insertFromRef", [{ range: editor.getSelection(), text }]);
+          editor.focus();
+          if (text.endsWith('()')) editor.trigger('cursorLeft','cursorLeft',null);
+        });
+      });
+    }
+
+    function filterAndRender(inputEl, baseArr, listEl){
+      const q = inputEl.value.trim().toLowerCase();
+      const arr = !q ? baseArr : baseArr.filter(x=>x.name.toLowerCase().includes(q) || (x.desc||'').toLowerCase().includes(q));
+      renderList(listEl, arr); bindClicks(listEl);
+    }
+
+    // Initial render
+    renderList(flist, FUNCS); bindClicks(flist);
+    renderList(vlist, VARS);  bindClicks(vlist);
+    renderList(olist, OPTS);  bindClicks(olist);
+
+    document.getElementById('fsearch').addEventListener('input', ()=>filterAndRender(fsearch, FUNCS, flist));
+    document.getElementById('vsearch').addEventListener('input', ()=>filterAndRender(vsearch, VARS, vlist));
+    document.getElementById('osearch').addEventListener('input', ()=>filterAndRender(osearch, OPTS, olist));
 
     // Preview evaluator (demo only)
     function preview() {
       const txt = editor.getValue();
-      const inputs = { width_mm:1750, height_mm:2200, qty:1, material:'WHITE', options:{ cassette:true } };
+      const inputs = {
+        width_mm:1750, height_mm:2200, qty:1, material:'WHITE',
+        options:{
+          cassette:true, motorized:false, remote_channels:1, chain_ratio:"4:1",
+          control_side:"right", side:"in", mount_type:"wall", bracket_type:"STD",
+          tube_diameter:38, bottom_bar:"B01", color:"WHITE", valance:false,
+          child_safety:true, extra_wrap_mm:15, fabric:"F-STD", fabric_thickness_mm:0.42, opening:"standard"
+        }
+      };
       const out = {};
       const lines = txt.split(/\r?\n/);
       for (const raw of lines) {
@@ -238,24 +402,33 @@ cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(option
         const key = m[1];
         let expr = m[2];
 
-        // variables
+        // Variables
         expr = expr.replace(/\bwidth_mm\b/g, inputs.width_mm);
         expr = expr.replace(/\bheight_mm\b/g, inputs.height_mm);
         expr = expr.replace(/\bqty\b/g, inputs.qty);
-        expr = expr.replace(/\boptions\.cassette\b/g, inputs.options.cassette ? 'true' : 'false');
+        expr = expr.replace(/\bmaterial\b/g, JSON.stringify(inputs.material));
 
-        // units
+        // Options.* (generic replace)
+        for (const o of OPTS) {
+          const path = o.name; // e.g., options.cassette
+          const val = path.split('.').reduce((acc,p)=>acc?.[p], inputs);
+          const rep = (typeof val === 'string') ? JSON.stringify(val) : (typeof val === 'boolean' ? (val?'true':'false') : (Number.isFinite(val)? String(val) : 'null'));
+          const re = new RegExp('\\b' + path.replace('.','\\.') + '\\b', 'g');
+          expr = expr.replace(re, rep);
+        }
+
+        // Units
         expr = expr.replace(/MM\(([^)]+)\)/gi, "($1)");
         expr = expr.replace(/CM\(([^)]+)\)/gi, "(($1)*10)");
         expr = expr.replace(/M\(([^)]+)\)/gi, "(($1)*1000)");
 
-        // math
+        // Math
         expr = expr.replace(/CEILING\(([^,]+),\s*([^)]+)\)/gi, "(Math.ceil(($1)/($2))*($2))");
         expr = expr.replace(/FLOOR\(([^,]+),\s*([^)]+)\)/gi, "(Math.floor(($1)/($2))*($2))");
         expr = expr.replace(/ROUND\(([^,]+),\s*0\)/gi, "Math.round($1)");
         expr = expr.replace(/ROUND\(([^,]+),\s*([^)]+)\)/gi, "Number((($1)).toFixed($2))");
 
-        // logic
+        // Logic
         expr = expr.replace(/NOT\(([^)]+)\)/gi, "(!($1))");
         expr = expr.replace(/AND\(([^)]+)\)/gi, "($1)".replaceAll(',', '&&'));
         expr = expr.replace(/OR\(([^)]+)\)/gi, "($1)".replaceAll(',', '||'));
@@ -272,16 +445,16 @@ cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(option
     }
 
     // Buttons
+    const status = document.getElementById('status');
     document.getElementById('btnPreview').onclick = preview;
     document.getElementById('btnClear').onclick = function(){
       editor.setValue('');
       document.getElementById('preview').textContent = '';
+      validate();
     };
     document.getElementById('btnCopy').onclick = async function(){
       await navigator.clipboard.writeText(editor.getValue());
-      const st = document.getElementById('status');
-      st.textContent = 'Copied ✓';
-      st.className = 'status ok';
+      status.textContent = 'Copied ✓'; status.className = 'status ok';
       setTimeout(validate, 1200);
     };
   });
