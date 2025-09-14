@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ShopfloorPilot — Formula Editor (Monaco, no imports)</title>
+<style>
+  :root{
+    --line:#e6ecf2; --brand:#FFAA00; --ok:#12805c; --err:#d92d20;
+  }
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1060px;margin:28px auto;padding:0 16px}
+  h1{font-size:1.2rem;margin:0 0 8px}
+  .hint{color:#66707d;font-size:.92rem;margin-bottom:12px}
+  .card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  #editor{height:360px}
+  .toolbar{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid var(--line)}
+  button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
+  button:hover{background:#fff7e6;border-color:#ffd782}
+  .primary{background:var(--brand);border-color:var(--brand)}
+  .status{margin-left:auto;font-size:.9rem}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  .preview{margin-top:12px;background:#fffaf1;border:1px solid #ffe0ad;border-radius:12px;padding:10px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap}
+  .help{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#f7fafc}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Excel-like Formula Editor (Monaco demo)</h1>
+  <div class="hint">Format: <code>key = =EXPR</code>. Try: <code>fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)</code></div>
+
+  <div class="card">
+    <div id="editor"></div>
+    <div class="toolbar">
+      <button id="btnPreview">Preview</button>
+      <button id="btnClear">Clear</button>
+      <button id="btnCopy" class="primary">Copy</button>
+      <div id="status" class="status">Ready</div>
+    </div>
+  </div>
+
+  <div id="preview" class="preview">Preview will appear here…</div>
+
+  <div class="help">
+    <b>What this demo can do:</b>
+    <ul>
+      <li>Excel-like lines: <code>key = =EXPR</code></li>
+      <li>Autocomplete <kbd>Ctrl/⌘+Space</kbd> for variables, functions, units</li>
+      <li>Hover hints (signatures, descriptions)</li>
+      <li>Lint: unknown identifiers, unbalanced parentheses</li>
+      <li>Preview: evaluates with sample inputs (width=1750, height=2200, cassette=true)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Monaco (VS Code editor) via AMD loader, no ESM imports -->
+<script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+  // Demo dictionary (hardcoded)
+  const VARS = [
+    { name:'width_mm', desc:'Product width (mm)' },
+    { name:'height_mm',desc:'Product height (mm)' },
+    { name:'qty',      desc:'Item quantity' },
+    { name:'material', desc:'Material code' },
+    { name:'options.cassette', desc:'Cassette option (bool)' }
+  ];
+  const FUNCS = [
+    { name:'ROUND',   sig:'ROUND(number,digits)', desc:'Round to given digits' },
+    { name:'CEILING', sig:'CEILING(number,significance)', desc:'Round up to nearest significance' },
+    { name:'FLOOR',   sig:'FLOOR(number,significance)',   desc:'Round down to nearest significance' },
+    { name:'IF',      sig:'IF(condition,a,b)',    desc:'Conditional' },
+    { name:'AND',     sig:'AND(a,b,...)',         desc:'Logical AND' },
+    { name:'OR',      sig:'OR(a,b,...)',          desc:'Logical OR' },
+    { name:'NOT',     sig:'NOT(x)',               desc:'Logical NOT' },
+    { name:'MM',      sig:'MM(x)',                desc:'To millimeters' },
+    { name:'CM',      sig:'CM(x)',                desc:'cm → mm' },
+    { name:'M',       sig:'M(x)',                 desc:'m → mm' }
+  ];
+  const KNOWN = new Set([...VARS.map(v=>v.name), ...FUNCS.map(f=>f.name), 'TRUE','FALSE']);
+
+  // Monaco setup
+  require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.45.0/min/vs' }});
+  window.MonacoEnvironment = { getWorkerUrl: function () {
+    // inline worker (works for file:// and http)
+    const code = `
+      self.MonacoEnvironment = { baseUrl: 'https://unpkg.com/monaco-editor@0.45.0/min/' };
+      importScripts('https://unpkg.com/monaco-editor@0.45.0/min/vs/base/worker/workerMain.js');
+    `;
+    return URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+  }};
+
+  require(['vs/editor/editor.main'], function () {
+    // Register custom language "formula"
+    monaco.languages.register({ id: 'formula' });
+
+    // Monarch tokens (simple)
+    monaco.languages.setMonarchTokensProvider('formula', {
+      tokenizer: {
+        root: [
+          [/\/\/.*$/, 'comment'],
+          [/"[^"]*"/, 'string'],
+          [/'[^']*'/, 'string'],
+          [/\b\d+(\.\d+)?\b/, 'number'],
+          [/\b(ROUND|CEILING|FLOOR|IF|AND|OR|NOT|MM|CM|M)\b/, 'type.identifier'], // functions
+          [/\b(TRUE|FALSE)\b/, 'keyword'],
+          [/[A-Za-z_][A-Za-z0-9_.]*/, 'identifier'],
+          [/[=+\-*/<>(),]/, 'operator']
+        ]
+      }
+    });
+
+    // Theme tweaks
+    monaco.editor.defineTheme('formulaLight', {
+      base: 'vs', inherit: true,
+      rules: [
+        { token:'identifier', foreground:'2563eb' },
+        { token:'type.identifier', foreground:'0ea5e9', fontStyle:'bold' },
+        { token:'number', foreground:'7c3aed' },
+        { token:'string', foreground:'a16207' },
+        { token:'comment', foreground:'8a94a3', fontStyle:'italic' }
+      ],
+      colors: {}
+    });
+
+    // Completion (Ctrl/Cmd+Space)
+    monaco.languages.registerCompletionItemProvider('formula', {
+      triggerCharacters: ['.', '_'],
+      provideCompletionItems: function(model, position) {
+        const suggestions = [];
+        VARS.forEach(v => suggestions.push({
+          label: v.name, kind: monaco.languages.CompletionItemKind.Variable,
+          insertText: v.name, detail:'var', documentation: v.desc
+        }));
+        FUNCS.forEach(f => suggestions.push({
+          label: f.name, kind: monaco.languages.CompletionItemKind.Function,
+          insertText: f.name + '()', detail: f.sig || 'fn', documentation: f.desc,
+          command: { id: 'cursorLeft', title: 'pos' } // put caret inside ()
+        }));
+        return { suggestions };
+      }
+    });
+
+    // Hover hints
+    monaco.languages.registerHoverProvider('formula', {
+      provideHover: function(model, position) {
+        const word = model.getWordAtPosition(position);
+        if (!word) return null;
+        const w = word.word;
+        const v = VARS.find(x=>x.name===w);
+        if (v) return { contents: [{value: `**${v.name}** — ${v.desc}`}] };
+        const f = FUNCS.find(x=>x.name===w);
+        if (f) return { contents: [{value: `**${f.name}**\n\n\`${f.sig||''}\`\n\n${f.desc}`}] };
+        return null;
+      }
+    });
+
+    // Simple linter: unknown identifiers + unbalanced parentheses
+    function validate() {
+      const model = editor.getModel();
+      const text = model.getValue().replace(/\r/g,'');
+      const lines = text.split('\n');
+      const markers = [];
+      let offset = 0;
+
+      for (let i=0;i<lines.length;i++) {
+        const raw = lines[i];
+        const trimmed = raw.trim();
+        if (!trimmed || trimmed.startsWith('//')) { offset += raw.length+1; continue; }
+
+        const m = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
+        if (!m) {
+          markers.push({ startLineNumber:i+1, startColumn:1, endLineNumber:i+1, endColumn:raw.length+1,
+            message:'Expected: key = =EXPR', severity: monaco.MarkerSeverity.Warning });
+          offset += raw.length+1; continue;
+        }
+
+        const expr = m[2];
+        // parentheses
+        let bal=0, err=false;
+        for (const ch of expr) {
+          if (ch==='(') bal++;
+          else if (ch===')') { bal--; if (bal<0){ err=true; break; } }
+        }
+        if (bal!==0 || err) {
+          markers.push({ startLineNumber:i+1, startColumn:raw.indexOf(expr)+1, endLineNumber:i+1, endColumn:raw.length+1,
+            message:'Unbalanced parentheses', severity: monaco.MarkerSeverity.Error });
+        }
+
+        // unknown identifiers (mask strings & numbers first)
+        const masked = expr.replace(/"[^"]*"|'[^']*'/g,'""').replace(/\b\d+(\.\d+)?\b/g,'0');
+        const ids = masked.split(/[^A-Za-z0-9_.]+/).filter(Boolean);
+        ids.forEach(id=>{
+          if (!KNOWN.has(id) && !id.startsWith('options.')) {
+            const col = raw.indexOf(id, raw.indexOf(expr)) + 1;
+            markers.push({ startLineNumber:i+1, startColumn:col, endLineNumber:i+1, endColumn:col+id.length,
+              message:`Unknown identifier: ${id}`, severity: monaco.MarkerSeverity.Error });
+          }
+        });
+
+        offset += raw.length+1;
+      }
+
+      monaco.editor.setModelMarkers(model, 'formula-lint', markers);
+      const hasErr = markers.some(m=>m.severity===monaco.MarkerSeverity.Error);
+      status.className = 'status ' + (hasErr?'err':'ok');
+      status.textContent = hasErr ? 'Errors present' : '✓ No errors';
+    }
+
+    // Create editor
+    const editor = monaco.editor.create(document.getElementById('editor'), {
+      value:
+`fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
+tube_length_mm   = =ROUND(width_mm - 2, 0)
+// comment
+cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0),1)
+`,
+      language: 'formula',
+      theme: 'formulaLight',
+      automaticLayout: true,
+      minimap: { enabled:false },
+      scrollBeyondLastLine: false,
+      fontLigatures: false
+    });
+
+    editor.onDidChangeModelContent(() => validate());
+    validate();
+
+    // Preview evaluator (demo only)
+    function preview() {
+      const txt = editor.getValue();
+      const inputs = { width_mm:1750, height_mm:2200, qty:1, material:'WHITE', options:{ cassette:true } };
+      const out = {};
+      const lines = txt.split(/\r?\n/);
+      for (const raw of lines) {
+        if (!raw.trim() || raw.trim().startsWith('//')) continue;
+        const m = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
+        if (!m) continue;
+        const key = m[1];
+        let expr = m[2];
+
+        // variables
+        expr = expr.replace(/\bwidth_mm\b/g, inputs.width_mm);
+        expr = expr.replace(/\bheight_mm\b/g, inputs.height_mm);
+        expr = expr.replace(/\bqty\b/g, inputs.qty);
+        expr = expr.replace(/\boptions\.cassette\b/g, inputs.options.cassette ? 'true' : 'false');
+
+        // units
+        expr = expr.replace(/MM\(([^)]+)\)/gi, "($1)");
+        expr = expr.replace(/CM\(([^)]+)\)/gi, "(($1)*10)");
+        expr = expr.replace(/M\(([^)]+)\)/gi, "(($1)*1000)");
+
+        // math
+        expr = expr.replace(/CEILING\(([^,]+),\s*([^)]+)\)/gi, "(Math.ceil(($1)/($2))*($2))");
+        expr = expr.replace(/FLOOR\(([^,]+),\s*([^)]+)\)/gi, "(Math.floor(($1)/($2))*($2))");
+        expr = expr.replace(/ROUND\(([^,]+),\s*0\)/gi, "Math.round($1)");
+        expr = expr.replace(/ROUND\(([^,]+),\s*([^)]+)\)/gi, "Number((($1)).toFixed($2))");
+
+        // logic
+        expr = expr.replace(/NOT\(([^)]+)\)/gi, "(!($1))");
+        expr = expr.replace(/AND\(([^)]+)\)/gi, "($1)".replaceAll(',', '&&'));
+        expr = expr.replace(/OR\(([^)]+)\)/gi, "($1)".replaceAll(',', '||'));
+        expr = expr.replace(/IF\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi, "($1 ? ($2) : ($3))");
+
+        try {
+          const v = Function(`return (${expr});`)();
+          out[key] = Number.isFinite(v) ? v : v;
+        } catch(e) {
+          out[key] = '(error)';
+        }
+      }
+      document.getElementById('preview').textContent = JSON.stringify(out, null, 2);
+    }
+
+    // Buttons
+    document.getElementById('btnPreview').onclick = preview;
+    document.getElementById('btnClear').onclick = function(){
+      editor.setValue('');
+      document.getElementById('preview').textContent = '';
+    };
+    document.getElementById('btnCopy').onclick = async function(){
+      await navigator.clipboard.writeText(editor.getValue());
+      const st = document.getElementById('status');
+      st.textContent = 'Copied ✓';
+      st.className = 'status ok';
+      setTimeout(validate, 1200);
+    };
+  });
+</script>
+</body>
+</html>

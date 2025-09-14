@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Formula Editor Demo (CodeMirror 6)</title>
+<style>
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:#fff;color:#17202a}
+  .wrap{max-width:980px;margin:28px auto;padding:0 16px}
+  h1{font-size:1.3rem;margin:0 0 8px}
+  .hint{color:#66707d;font-size:.92rem;margin-bottom:12px}
+  .card{border:1px solid #e6ecf2;border-radius:12px;overflow:hidden;background:#fff}
+  .toolbar{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid #e6ecf2;background:#fff}
+  button{border:1px solid #e6ecf2;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
+  button:hover{background:#fff7e6;border-color:#ffd782}
+  .primary{background:#FFAA00;border-color:#FFAA00}
+  .status{margin-left:auto;font-size:.9rem}
+  .status.ok{color:#12805c} .status.err{color:#d92d20}
+  .preview{margin-top:12px;background:#fffaf1;border:1px solid #ffe0ad;border-radius:12px;padding:10px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap}
+  .cm-theme{min-height:220px}
+  .help{margin-top:20px;padding:16px;background:#f7fafc;border:1px solid #e1e8f0;border-radius:12px;font-size:.92rem}
+  .help h2{margin-top:0;font-size:1rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Excel-like Formula Editor (Demo)</h1>
+  <div class="hint">
+    Example: <code>fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)</code>
+  </div>
+
+  <div class="card">
+    <div id="editor"></div>
+    <div class="toolbar">
+      <button id="btnPreview">Preview</button>
+      <button id="btnClear">Clear</button>
+      <button id="btnCopy" class="primary">Copy</button>
+      <div id="status" class="status">Ready</div>
+    </div>
+  </div>
+
+  <div id="preview" class="preview">Preview will appear here…</div>
+
+  <div class="help">
+    <h2>What this demo editor can do:</h2>
+    <ul>
+      <li><b>Excel-like formulas:</b> write <code>key = =EXPR</code> per line.</li>
+      <li><b>Autocomplete:</b> press <kbd>Ctrl+Space</kbd> or start typing for suggestions (variables, functions, units).</li>
+      <li><b>Variables:</b> <code>width_mm</code>, <code>height_mm</code>, <code>qty</code>, <code>material</code>, <code>options.cassette</code></li>
+      <li><b>Functions:</b> <code>ROUND</code>, <code>CEILING</code>, <code>FLOOR</code>, <code>IF</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code></li>
+      <li><b>Units:</b> <code>MM(x)</code>, <code>CM(x)</code>, <code>M(x)</code></li>
+      <li><b>Linting:</b> highlights errors (unknown identifiers, unbalanced parentheses).</li>
+      <li><b>Preview:</b> evaluates formulas with demo inputs (width=1750, height=2200, cassette=true).</li>
+      <li><b>Toolbar:</b> <i>Preview</i> results, <i>Clear</i> editor, <i>Copy</i> content to clipboard.</li>
+    </ul>
+  </div>
+</div>
+
+<script type="module">
+import {EditorState, Compartment} from "https://esm.sh/@codemirror/state@6";
+import {EditorView, keymap, placeholder, highlightActiveLine} from "https://esm.sh/@codemirror/view@6";
+import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands@6";
+import {autocomplete, completeFromList, ifNotIn, closeBrackets, closeBracketsKeymap} from "https://esm.sh/@codemirror/autocomplete@6";
+import {linter, lintGutter} from "https://esm.sh/@codemirror/lint@6";
+import {HighlightStyle, tags as t} from "https://esm.sh/@codemirror/highlight@6";
+
+const VARS = [
+  {label:"width_mm", type:"variable", detail:"number", info:"Product width (mm)"},
+  {label:"height_mm", type:"variable", detail:"number", info:"Product height (mm)"},
+  {label:"qty", type:"variable", detail:"number", info:"Item quantity"},
+  {label:"material", type:"variable", detail:"string", info:"Material code"},
+  {label:"options.cassette", type:"variable", detail:"bool", info:"Cassette option"}
+];
+const FUNCS = [
+  {label:"ROUND", type:"function", detail:"ROUND(number,digits)", info:"Round to given digits"},
+  {label:"CEILING", type:"function", detail:"CEILING(number,significance)", info:"Round up"},
+  {label:"FLOOR", type:"function", detail:"FLOOR(number,significance)", info:"Round down"},
+  {label:"IF", type:"function", detail:"IF(cond,a,b)", info:"Conditional"},
+  {label:"AND", type:"function", detail:"AND(a,b,...)", info:"Logical AND"},
+  {label:"OR", type:"function", detail:"OR(a,b,...)", info:"Logical OR"},
+  {label:"NOT", type:"function", detail:"NOT(x)", info:"Logical NOT"},
+  {label:"MM", type:"function", detail:"MM(x)", info:"Convert to millimeters"},
+  {label:"CM", type:"function", detail:"CM(x)", info:"Convert centimeters to mm"},
+  {label:"M", type:"function", detail:"M(x)", info:"Convert meters to mm"}
+];
+const COMPLETIONS = [...VARS, ...FUNCS];
+
+const formulaHighlight = HighlightStyle.define([
+  {tag: t.variableName, color: "#2563eb"},
+  {tag: t.number, color: "#7c3aed"},
+  {tag: t.string, color: "#a16207"},
+  {tag: t.operator, color: "#111"},
+  {tag: t.atom, color: "#0ea5e9", fontWeight:"700"},
+  {tag: t.lineComment, color:"#8a94a3", fontStyle:"italic"}
+]);
+
+const completionSource = ifNotIn(["Comment"], completeFromList(COMPLETIONS));
+
+function formulaLinter(view) {
+  const diagnostics = [];
+  const lines = view.state.doc.toString().split(/\n/);
+  const known = new Set(COMPLETIONS.map(x=>x.label).concat(["TRUE","FALSE"]));
+  let pos=0;
+  for (let line of lines) {
+    const raw=line.trim();
+    if (!raw || raw.startsWith("//")){pos+=line.length+1;continue;}
+    const m=line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
+    if(!m){
+      diagnostics.push({from:pos,to:pos+line.length,severity:"warning",message:"Expected key = =EXPR"});
+      pos+=line.length+1;continue;
+    }
+    const expr=m[2];
+    let bal=0,err=false;
+    for (let ch of expr){if(ch==='(')bal++;else if(ch===')'){bal--;if(bal<0){err=true;break;}}}
+    if(bal!==0||err) diagnostics.push({from:pos+line.indexOf(expr),to:pos+line.length,severity:"error",message:"Unbalanced parentheses"});
+    expr.split(/[^A-Za-z0-9_.]+/).filter(Boolean).forEach(id=>{
+      if(!known.has(id) && !id.startsWith("options.")){
+        diagnostics.push({from:pos+line.indexOf(id),to:pos+line.indexOf(id)+id.length,severity:"error",message:`Unknown identifier: ${id}`});
+      }
+    });
+    pos+=line.length+1;
+  }
+  return diagnostics;
+}
+
+const state = EditorState.create({
+  doc:`fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
+tube_length_mm   = =ROUND(width_mm - 2, 0)
+// comment
+cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette,1,0),1)
+`,
+  extensions:[
+    keymap.of([...defaultKeymap,...historyKeymap,...closeBracketsKeymap]),
+    history(),
+    closeBrackets(),
+    placeholder("key = =EXPR"),
+    autocomplete({override:[completionSource]}),
+    linter(formulaLinter,{delay:200}),
+    lintGutter(),
+    highlightActiveLine(),
+    EditorView.lineWrapping,
+    formulaHighlight
+  ]
+});
+
+const view=new EditorView({state,parent:document.getElementById("editor")});
+
+const status=document.getElementById("status"),previewEl=document.getElementById("preview");
+function setStatus(ok){status.className="status "+(ok?"ok":"err");status.textContent=ok?"✓ No errors":"Errors present";}
+function updateStatus(){const hasErr=view.state.field(linter(true)).some(d=>d.severity==="error");setStatus(!hasErr);}updateStatus();
+view.dispatch=((orig)=>tr=>{const res=orig.call(view,tr);if(tr.docChanged)updateStatus();return res;})(view.dispatch);
+
+function preview(){
+  const lines=view.state.doc.toString().split(/\r?\n/);
+  const inputs={width_mm:1750,height_mm:2200,qty:1,material:"WHITE",options:{cassette:true}};
+  const out={};
+  for(const raw of lines){
+    if(!raw.trim()||raw.trim().startsWith("//"))continue;
+    const m=raw.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
+    if(!m)continue;
+    const key=m[1];let expr=m[2];
+    expr=expr.replace(/\bwidth_mm\b/g,inputs.width_mm).replace(/\bheight_mm\b/g,inputs.height_mm).replace(/\bqty\b/g,inputs.qty).replace(/\boptions\.cassette\b/g,inputs.options.cassette?"true":"false");
+    expr=expr.replace(/MM\(([^)]+)\)/gi,"($1)").replace(/CM\(([^)]+)\)/gi,"(($1)*10)").replace(/M\(([^)]+)\)/gi,"(($1)*1000)");
+    expr=expr.replace(/CEILING\(([^,]+),\s*([^)]+)\)/gi,"(Math.ceil(($1)/($2))*($2))").replace(/FLOOR\(([^,]+),\s*([^)]+)\)/gi,"(Math.floor(($1)/($2))*($2))");
+    expr=expr.replace(/ROUND\(([^,]+),\s*0\)/gi,"Math.round($1)").replace(/ROUND\(([^,]+),\s*([^)]+)\)/gi,"Number((($1)).toFixed($2))");
+    expr=expr.replace(/NOT\(([^)]+)\)/gi,"(!($1))").replace(/AND\(([^)]+)\)/gi,"($1)".replaceAll(',','&&')).replace(/OR\(([^)]+)\)/gi,"($1)".replaceAll(',','||')).replace(/IF\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi,"($1?($2):($3))");
+    try{const v=Function(`return (${expr});`)();out[key]=Number.isFinite(v)?v:v;}catch(e){out[key]="(error)";}
+  }
+  previewEl.textContent=JSON.stringify(out,null,2);
+}
+
+document.getElementById("btnPreview").onclick=preview;
+document.getElementById("btnClear").onclick=()=>{view.dispatch({changes:{from:0,to:view.state.doc.length,insert:""}});previewEl.textContent="";};
+document.getElementById("btnCopy").onclick=async()=>{await navigator.clipboard.writeText(view.state.doc.toString());status.textContent="Copied ✓";setTimeout(updateStatus,1200);};
+</script>
+</body>
+</html>

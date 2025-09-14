@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Formula Editor (Excel-like, simple multiline)</title>
+<style>
+  :root{
+    --bg:#fff; --ink:#162029; --muted:#6b7785; --line:#e1e8f0; --brand:#FFAA00;
+    --err:#d92d20; --warn:#b54708;
+    --code-bg:#f7f9fc; --hl-var:#2563eb; --hl-fn:#0ea5e9; --hl-num:#7c3aed; --hl-str:#a16207;
+  }
+  body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--ink)}
+  .wrap{max-width:880px; margin:32px auto; padding:0 16px}
+  h1{font-size:1.2rem; margin:0 0 12px}
+  .hint{color:var(--muted); font-size:.9rem; margin-bottom:12px}
+  .editor{
+    position:relative; border:1px solid var(--line); border-radius:10px;
+    background:var(--code-bg);
+  }
+  .code, .hl {
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    padding:14px 14px 36px 14px; white-space:pre; overflow:auto; tab-size:2;
+  }
+  .code {
+    position:absolute; inset:0; color:transparent; caret-color:#111; background:transparent;
+    border:0; outline:0; resize:none;
+  }
+  .hl   { color:#111; min-height:180px; pointer-events:none }
+  .toolbar{display:flex; gap:8px; align-items:center; padding:10px; border-top:1px solid var(--line); background:#fff; border-radius:0 0 10px 10px}
+  button{border:1px solid var(--line); background:#fff; padding:8px 10px; border-radius:8px; cursor:pointer}
+  button.primary{background:var(--brand); border-color:var(--brand)}
+  .pill{margin-left:auto; color:var(--muted); font-size:.85rem}
+
+  /* Autocomplete popup */
+  .ac{
+    position:absolute; z-index:3; background:#fff; border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.12); min-width:220px; overflow:hidden; display:none;
+  }
+  .ac-item{display:flex; gap:8px; padding:6px 10px; align-items:flex-start; cursor:pointer}
+  .ac-item:hover,.ac-item.active{background:#fff7e6}
+  .ac-ico{font-size:.8rem; padding:2px 6px; border:1px solid var(--line); border-radius:6px; color:#222}
+  .ac-name{font-weight:600}
+  .ac-desc{font-size:.8rem; color:var(--muted)}
+
+  /* Highlight classes */
+  .tok-var{ color: var(--hl-var); }
+  .tok-fn { color: var(--hl-fn); font-weight:600; }
+  .tok-num{ color: var(--hl-num); }
+  .tok-str{ color: var(--hl-str); }
+  .tok-op { color: #111; }
+  .tok-unk{ text-decoration: wavy underline var(--err); }
+  .tok-comm{ color:#8a94a3; font-style:italic; }
+  .errbar{position:absolute; right:10px; bottom:8px; color:var(--err); font-size:.85rem;}
+  .okbar{position:absolute; right:10px; bottom:8px; color:#12805c; font-size:.85rem;}
+  .preview{margin-top:14px; background:#fffaf1; border:1px solid #ffe2b3; border-radius:10px; padding:10px; font-family:ui-monospace,Consolas,monospace; white-space:pre}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Excel-like Formula Editor (per Task)</h1>
+  <div class="hint">
+    One assignment per line: <code>key = =EXPR</code> &nbsp;|&nbsp; Variables: <code>width_mm</code>, <code>height_mm</code>, <code>qty</code>, <code>material</code> &nbsp;|&nbsp; Functions: <code>ROUND</code>, <code>CEILING</code>, <code>FLOOR</code>, <code>IF</code>, <code>AND</code>, <code>OR</code>
+  </div>
+
+  <div class="editor" id="ed">
+    <pre class="hl" id="hl"></pre>
+    <textarea class="code" id="code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+    <div class="ac" id="ac"></div>
+    <div class="okbar" id="okbar" style="display:none">✓ No errors</div>
+    <div class="errbar" id="errbar" style="display:none">Errors present</div>
+    <div class="toolbar">
+      <button id="btnPreview">Preview (demo inputs)</button>
+      <button id="btnClear">Clear</button>
+      <button class="primary" id="btnCopy">Copy</button>
+      <div class="pill">Press <b>Ctrl+Space</b> for autocomplete</div>
+    </div>
+  </div>
+
+  <div class="preview" id="preview" aria-live="polite">Preview will appear here…</div>
+</div>
+
+<script>
+/* ---------- Hardcoded dictionary (MVP) ---------- */
+const VARS = [
+  {name:'width_mm', desc:'Product width in millimeters (number)'},
+  {name:'height_mm',desc:'Product height in millimeters (number)'},
+  {name:'qty',      desc:'Item quantity (number)'},
+  {name:'material', desc:'Material code (string)'},
+  {name:'options.cassette', desc:'Boolean option cassette (bool)'}
+];
+const FUNCS = [
+  {name:'ROUND',   sig:'ROUND(number, digits)',   desc:'Round to given digits'},
+  {name:'CEILING', sig:'CEILING(number, significance)', desc:'Round up to nearest significance'},
+  {name:'FLOOR',   sig:'FLOOR(number, significance)',   desc:'Round down to nearest significance'},
+  {name:'IF',      sig:'IF(condition, a, b)',     desc:'Conditional'},
+  {name:'AND',     sig:'AND(a, b, ...)',          desc:'Logical AND'},
+  {name:'OR',      sig:'OR(a, b, ...)',           desc:'Logical OR'},
+  {name:'NOT',     sig:'NOT(x)',                  desc:'Logical NOT'},
+];
+const ALL = [...VARS.map(v=>({type:'var', ...v})), ...FUNCS.map(f=>({type:'fn', ...f}))];
+
+/* ---------- Elements ---------- */
+const code = document.getElementById('code');
+const hl   = document.getElementById('hl');
+const ac   = document.getElementById('ac');
+const okbar= document.getElementById('okbar');
+const errbar=document.getElementById('errbar');
+const preview = document.getElementById('preview');
+
+/* Seed content */
+code.value =
+`fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)
+tube_length_mm   = =ROUND(width_mm - 2, 0)
+// comments allowed
+cut_time_min     = =ROUND((width_mm/1000)*0.2 + (height_mm/1000)*0.2 + IF(options.cassette, 1, 0), 1)
+`;
+render();
+
+/* ---------- Highlight & validate ---------- */
+function render(){
+  const src = code.value.replace(/\r/g,'');
+  const lines = src.split('\n');
+
+  const reIdent = /[A-Za-z_][A-Za-z0-9_.]*/g;
+  const reNum   = /\b\d+(?:\.\d+)?\b/g;
+  const reStr   = /"[^"\n]*"|'[^'\n]*'/g;
+  const reOp    = /[+\-*/<>=(),]/g;
+
+  let html = '', anyErrors = false;
+  for(let raw of lines){
+    let line = escapeHtml(raw);
+    // comments
+    const commIdx = line.indexOf('//');
+    let comm = '';
+    if (commIdx >= 0){ comm = line.slice(commIdx); line = line.slice(0, commIdx); }
+
+    // numbers
+    line = line.replace(reNum, m=> `<span class="tok-num">${m}</span>`);
+    // strings
+    line = line.replace(reStr, m=> `<span class="tok-str">${m}</span>`);
+    // operators
+    line = line.replace(reOp, m=> `<span class="tok-op">${m}</span>`);
+
+    // identifiers (after coloring nums/strings/ops we run another pass)
+    line = line.replace(reIdent, (m)=>{
+      // left side key is fine
+      if (/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=/.test(raw) && raw.indexOf(m) < raw.indexOf('=')) return m;
+
+      // function?
+      if (FUNCS.some(f=>f.name===m)) return `<span class="tok-fn">${m}</span>`;
+      // variable?
+      if (VARS.some(v=>v.name===m)) return `<span class="tok-var">${m}</span>`;
+      // options.foo?
+      if (m.startsWith('options.')) return `<span class="tok-var">${m}</span>`;
+      // keywords TRUE/FALSE
+      if (m==='TRUE'||m==='FALSE') return `<span class="tok-var">${m}</span>`;
+
+      // unknown identifier inside expr
+      if (raw.trim().length>0 && raw.trim()[0] !== '/' ) {
+        anyErrors = true;
+        return `<span class="tok-unk" title="Unknown identifier">${m}</span>`;
+      }
+      return m;
+    });
+
+    if (comm) line += `<span class="tok-comm">${comm}</span>`;
+    html += line + '\n';
+  }
+  hl.innerHTML = html;
+
+  okbar.style.display  = anyErrors ? 'none' : 'block';
+  errbar.style.display = anyErrors ? 'block': 'none';
+}
+
+// keep scroll/padding/size in sync
+function sync(){
+  hl.scrollTop = code.scrollTop;
+  hl.scrollLeft= code.scrollLeft;
+  hl.style.height = code.style.height = Math.max(180, code.scrollHeight)+'px';
+}
+code.addEventListener('input', ()=>{ render(); sync(); hideAC(); });
+code.addEventListener('scroll', sync);
+window.addEventListener('resize', sync);
+
+/* ---------- Autocomplete (Ctrl+Space or typing letters) ---------- */
+let acIndex = -1;
+code.addEventListener('keydown', (e)=>{
+  if ((e.ctrlKey || e.metaKey) && e.code === 'Space') { e.preventDefault(); openAC(); return; }
+  if (ac.style.display==='block'){
+    if (e.key==='ArrowDown'){ moveAC(1); e.preventDefault(); }
+    if (e.key==='ArrowUp'){ moveAC(-1); e.preventDefault(); }
+    if (e.key==='Enter' || e.key==='Tab'){ pickAC(); e.preventDefault(); }
+    if (e.key==='Escape'){ hideAC(); e.preventDefault(); }
+  }
+});
+code.addEventListener('keyup', (e)=>{
+  if (/^[A-Za-z.]$/.test(e.key)) {
+    // show suggestions for current token
+    openAC();
+  }
+});
+
+function openAC(){
+  const {token, start} = currentToken();
+  const q = token.toLowerCase();
+  const items = ALL.filter(x => x.name.toLowerCase().includes(q)).slice(0, 10);
+  if (!items.length){ hideAC(); return; }
+
+  ac.innerHTML = items.map((it,i)=>`
+    <div class="ac-item ${i===0?'active':''}" data-i="${i}">
+      <div class="ac-ico">${it.type==='fn'?'ƒn':'var'}</div>
+      <div>
+        <div class="ac-name">${it.name}${it.sig?` — <span class="ac-desc">${it.sig}</span>`:''}</div>
+        <div class="ac-desc">${escapeHtml(it.desc||'')}</div>
+      </div>
+    </div>
+  `).join('');
+  ac.style.display = 'block';
+  acIndex = 0;
+
+  // position near caret
+  const pos = caretCoords(code);
+  const rect = code.getBoundingClientRect();
+  ac.style.left = Math.min(rect.width-240, pos.left - rect.left + 8) + 'px';
+  ac.style.top  = (pos.top - rect.top + 24) + 'px';
+
+  // mouse support
+  [...ac.querySelectorAll('.ac-item')].forEach(el=>{
+    el.addEventListener('mouseenter', ()=>{ setAC(parseInt(el.dataset.i,10)); });
+    el.addEventListener('mousedown', (ev)=>{ ev.preventDefault(); setAC(parseInt(el.dataset.i,10)); pickAC(); });
+  });
+}
+function hideAC(){ ac.style.display='none'; acIndex=-1; }
+function setAC(i){
+  const items = ac.querySelectorAll('.ac-item');
+  if (!items.length) return;
+  items.forEach(it=>it.classList.remove('active'));
+  acIndex = ((i % items.length) + items.length) % items.length;
+  items[acIndex].classList.add('active');
+}
+function moveAC(d){ setAC(acIndex + d); }
+function pickAC(){
+  const items = ac.querySelectorAll('.ac-item');
+  if (!items.length || acIndex<0) return;
+  const name = items[acIndex].querySelector('.ac-name').textContent.split(' — ')[0].trim();
+  insertAtToken(name);
+  hideAC();
+}
+
+function currentToken(){
+  const pos = code.selectionStart;
+  const before = code.value.slice(0,pos);
+  const m = before.match(/[A-Za-z0-9_.]+$/);
+  const token = m? m[0] : '';
+  const start = m? pos - token.length : pos;
+  return {token,start,pos};
+}
+function insertAtToken(text){
+  const {token,start,pos} = currentToken();
+  code.setRangeText(text, start, pos, 'end');
+  code.dispatchEvent(new Event('input'));
+}
+
+/* ---------- Preview (fake evaluator) ---------- */
+document.getElementById('btnPreview').addEventListener('click', ()=>{
+  const inputs = { width_mm:1750, height_mm:2200, qty:1, material:'WHITE', options:{ cassette:true } };
+  const out = {};
+  const lines = code.value.split(/\r?\n/);
+  for(const raw of lines){
+    if (!raw.trim() || raw.trim().startsWith('//')) continue;
+    const m = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*=?\s*(.+)$/);
+    if(!m) continue;
+    const key = m[1];
+    let expr = m[2];
+
+    // replace variables (VERY simple)
+    expr = expr.replace(/\bwidth_mm\b/g, inputs.width_mm);
+    expr = expr.replace(/\bheight_mm\b/g, inputs.height_mm);
+    expr = expr.replace(/\bqty\b/g, inputs.qty);
+    expr = expr.replace(/\boptions\.cassette\b/g, inputs.options.cassette ? 'true':'false');
+
+    // replace functions (simple mapping)
+    expr = expr.replace(/CEILING\(([^,]+),\s*([^)]+)\)/gi, "(Math.ceil(($1)/($2))*($2))");
+    expr = expr.replace(/FLOOR\(([^,]+),\s*([^)]+)\)/gi, "(Math.floor(($1)/($2))*($2))");
+    expr = expr.replace(/ROUND\(([^,]+),\s*0\)/gi, "Math.round($1)");
+    // IF/AND/OR
+    expr = expr.replace(/AND\(([^)]+)\)/gi, "($1)".replaceAll(',', '&&'));
+    expr = expr.replace(/OR\(([^)]+)\)/gi, "($1)".replaceAll(',', '||'));
+    expr = expr.replace(/IF\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi, "($1 ? ($2) : ($3))");
+
+    try{
+      // eslint-disable-next-line no-new-func
+      const v = Function(`return (${expr});`)();
+      out[key] = (Number.isFinite(v) ? Math.round(v) : v);
+    }catch(e){
+      out[key] = '(error)';
+    }
+  }
+  preview.textContent = JSON.stringify(out, null, 2);
+});
+document.getElementById('btnClear').addEventListener('click', ()=>{ code.value=''; render(); sync(); preview.textContent=''; });
+document.getElementById('btnCopy').addEventListener('click', async ()=>{
+  await navigator.clipboard.writeText(code.value);
+  preview.textContent = 'Copied to clipboard ✅\n\n' + preview.textContent;
+});
+
+/* ---------- Utils ---------- */
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]) ); }
+
+// compute caret pixel position inside textarea (rough)
+function caretCoords(textarea){
+  const div = document.createElement('div');
+  const style = window.getComputedStyle(textarea);
+  [...style].forEach(p=> div.style[p]=style[p]);
+  div.style.position='absolute'; div.style.visibility='hidden'; div.style.whiteSpace='pre-wrap';
+  div.style.width = textarea.clientWidth + 'px';
+  const before = textarea.value.substring(0, textarea.selectionStart);
+  div.textContent = before.replace(/\n$/,'\n\u200b');
+  document.body.appendChild(div);
+  const span = document.createElement('span'); span.textContent = '\u200b';
+  div.appendChild(span);
+  const rect = span.getBoundingClientRect();
+  const cr = textarea.getBoundingClientRect();
+  document.body.removeChild(div);
+  return { left: rect.left, top: rect.top, base: cr };
+}
+
+/* initial sync */
+sync();
+</script>
+</body>
+</html>
