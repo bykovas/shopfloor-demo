@@ -49,3 +49,27 @@ body{
   width:95%; max-width:480px; font:inherit; padding:4px 6px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+
+/* --- Side form UI --- */
+.field { display:flex; flex-direction:column; gap:.25rem; margin:.5rem 0; }
+.field label { font-size:.82rem; color:var(--ink2); }
+.field input[type="text"],
+.field input[type="number"],
+.field select,
+.field textarea {
+  width:100%;
+  font:inherit;
+  padding:.5rem .6rem;
+  border:1px solid var(--line);
+  border-radius:.5rem;
+  background:#fff;
+  box-sizing:border-box;
+}
+.field textarea { resize:vertical }
+
+.row2 { display:grid; grid-template-columns: 1fr 1fr; gap:.6rem; }
+
+.actions { display:flex; align-items:center; gap:.6rem; margin-top:.6rem; }
+.actions .muted { font-size:.8rem; color:var(--ink2); }
+
+.btn.pill { border-radius:999px; font-weight:600; }

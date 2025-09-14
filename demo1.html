@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ShopfloorPilot — Rete v2 (Lauresta skin)</title>
+<style>
+  :root{
+    --bg:#ffffff; --paper:#ffffff; --ink:#1a1f24; --ink2:#616b76;
+    --brand:#FFAA00; --brand2:#cc8a00; --line:#e8edf3;
+    --node:#f7fafc; --terminal:#fff2e0;
+  }
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+  .topbar{position:sticky;top:0;z-index:3;display:flex;gap:.5rem;align-items:center;padding:.8rem 1rem;background:var(--paper);border-bottom:1px solid var(--line)}
+  .brand{font-weight:800;letter-spacing:.2px}
+  .pill{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .6rem;border:1px solid var(--line);border-radius:999px;background:#fff}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:.55rem;padding:.45rem .75rem;cursor:pointer}
+  .btn:hover{border-color:#ffd782;background:#fff7e6}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#1b1400}
+  .btn.primary:hover{background:var(--brand2);border-color:var(--brand2);color:#110c00}
+  .btn.danger{background:#fff1f1;border-color:#ffd0d0;color:#7a0410}
+  .wrap{display:grid;grid-template-columns:1fr 360px;gap:14px;height:calc(100% - 60px)}
+  .canvasWrap{position:relative;background:
+    linear-gradient(90deg,#fafcff 14px,transparent 1px) 0 0/15px 15px,
+    linear-gradient(#fafcff 14px, transparent 1px) 0 0/15px 15px}
+  #rete{position:absolute; inset:0;}
+  .side{background:var(--paper);border-left:1px solid var(--line);padding:12px;overflow:auto}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px}
+  .panel h3{margin:.2rem 0 .6rem;font-size:1rem}
+  .hr{height:1px;background:#e7edf5;margin:.6rem 0}
+  .hint{font-size:.82rem;color:var(--ink2)}
+
+  /* Rete v2 (Vue renderer) host tweaks */
+  .rete-node{background:var(--node); border:1px solid #d9e4f2; border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  .rete-title{border-bottom:1px solid #eef3f8; font-weight:700}
+  .rete-node.terminal{background:var(--terminal); border-color:#ffd9a6}
+  .rete-socket{background:#fff; border:2px solid var(--brand)}
+  .rete-connection path{stroke:#9fb3c6; stroke-width:3; stroke-dasharray:8 6; animation:flow 3s linear infinite}
+  .rete-connection.selected path{stroke:var(--brand)}
+  @keyframes flow { to { stroke-dashoffset:-200 } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand pill">LAURESTA • ShopfloorPilot</div>
+    <div class="pill">Product: <b>ROLLER_STD</b></div>
+    <div style="margin-left:auto;display:flex;gap:.4rem">
+      <button class="btn" id="btnAdd">Add Task</button>
+      <button class="btn" id="btnAuto">Auto layout</button>
+      <button class="btn" id="btnUndo">Undo</button>
+      <button class="btn" id="btnRedo">Redo</button>
+      <button class="btn danger" id="btnDelete">Delete selected</button>
+      <button class="btn primary" id="btnExport">Export JSON</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="canvasWrap">
+      <div id="rete"></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h3>Tips</h3>
+        <div class="hint">
+          • Right-click canvas → Add Task.<br/>
+          • Drag output → input to set dependency.<br/>
+          • Edit fields in the node; export produces graph + runtime.<br/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rete v2 (ESM) -->
+  <script type="module">
+    // Core & presets
+    import { NodeEditor, ClassicPreset } from 'https://unpkg.com/rete@2?module';
+
+    // Plugins (v2)
+    import { AreaPlugin, AreaExtensions, ZoomArea } from 'https://unpkg.com/rete-area-plugin@2?module';
+    import { ConnectionPlugin, Presets as ConnectionPresets } from 'https://unpkg.com/rete-connection-plugin@2?module';
+    import { MinimapPlugin } from 'https://unpkg.com/rete-minimap-plugin@2?module';
+    import { HistoryPlugin, Presets as HistoryPresets } from 'https://unpkg.com/rete-history-plugin@2?module';
+    import { ArrangePlugin, Presets as ArrangePresets } from 'https://unpkg.com/rete-auto-arrange-plugin@2?module';
+    import { ContextMenuPlugin, Presets as ContextMenuPresets } from 'https://unpkg.com/rete-context-menu-plugin@2?module';
+
+    // Vue 3 renderer
+    import { VuePlugin, Presets as VuePresets } from 'https://unpkg.com/rete-vue-plugin@2?module';
+
+    // --- Editor setup ---
+    const container = document.getElementById('rete');
+
+    // scheme typing via ClassicPreset; one socket "any"
+    const socketAny = new ClassicPreset.Socket('any');
+
+    // Task node (v2 ClassicPreset)
+    class TaskNode extends ClassicPreset.Node {
+      constructor() {
+        super('Task');
+        // io
+        this.addInput('inp', new ClassicPreset.Input(socketAny, 'dependsOn', true)); // multiple
+        this.addOutput('out', new ClassicPreset.Output(socketAny, 'prerequisite'));
+
+        // data
+        this.data = {
+          taskType: 'CUT_FABRIC',
+          wc: 'FAB',
+          terminal: 'false',
+          kitImpact: '10',
+          mandatory: 'true',
+          formulasText: ''
+        };
+
+        // controls
+        this.addControl('taskType', new ClassicPreset.InputControl('text', { initial: this.data.taskType, placeholder: 'CUT_FABRIC' }));
+        this.addControl('wc',       new ClassicPreset.InputControl('text', { initial: this.data.wc, placeholder: 'FAB' }));
+        this.addControl('terminal', new ClassicPreset.SelectControl({ options: [{ value:'false', label:'No'},{ value:'true', label:'Yes'}], initial: this.data.terminal }));
+        this.addControl('kitImpact',new ClassicPreset.InputControl('number', { initial: this.data.kitImpact }));
+        this.addControl('mandatory',new ClassicPreset.SelectControl({ options: [{ value:'true', label:'Yes'},{ value:'false', label:'No'}], initial: this.data.mandatory }));
+        this.addControl('formulasText', new ClassicPreset.TextAreaControl({ initial: this.data.formulasText, placeholder: 'fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)\ntube_length_mm = =ROUND(width_mm - 2, 0)' }));
+      }
+
+      // helper for export
+      getRuntime() {
+        return {
+          taskType: this.data.taskType || 'TASK',
+          wc: this.data.wc || 'WC',
+          isTerminal: this.data.terminal === 'true'
+        };
+      }
+    }
+
+    // editor
+    const editor = new NodeEditor();
+    const area = new AreaPlugin(container);
+    const render = new VuePlugin(container, { createRoot: VuePresets.classic.createRoot });
+    const conn = new ConnectionPlugin();
+    const minimap = new MinimapPlugin();
+    const history = new HistoryPlugin();
+    const arrange = new ArrangePlugin();
+
+    editor.use(area);
+    editor.use(render);
+    editor.use(conn, { 
+      // nice curved connections
+      ...ConnectionPresets.classic.setup()
+    });
+    editor.use(minimap);
+    editor.use(history, { ...HistoryPresets.classic.setup() });
+    editor.use(arrange, { ...ArrangePresets.classic.setup({ offset: { x: 180, y: 80 }, vertical: false }) });
+    editor.use(new ContextMenuPlugin({ items: ContextMenuPresets.classic.setup([]) }));
+
+    // Render styling: mark terminal nodes
+    render.addPreset(VuePresets.classic.setup({
+      customize: {
+        node(data) {
+          const el = data.el;
+          const node = data.payload;
+          const apply = () => {
+            if (node.data.terminal === 'true') el.classList.add('terminal'); else el.classList.remove('terminal');
+          };
+          apply();
+          node.addPipe(ctx => {
+            if (ctx.type === 'nodetranslated' || ctx.type === 'rendered') apply();
+            return ctx;
+          });
+        }
+      }
+    }));
+
+    // helpers
+    async function addTaskNode(x, y, seed = {}) {
+      const n = new TaskNode();
+
+      // seed data
+      Object.assign(n.data, seed);
+
+      // sync controls with data
+      n.controls.get('taskType').setValue(n.data.taskType);
+      n.controls.get('wc').setValue(n.data.wc);
+      n.controls.get('terminal').setValue(n.data.terminal);
+      n.controls.get('kitImpact').setValue(n.data.kitImpact);
+      n.controls.get('mandatory').setValue(n.data.mandatory);
+      n.controls.get('formulasText').setValue(n.data.formulasText);
+
+      await editor.addNode(n);
+      await area.translate(n.id, x, y);
+      return n;
+    }
+
+    function exportRuntime() {
+      const nodes = [...editor.getNodes()].map(n => ({
+        id: n.id,
+        taskType: n.data.taskType || 'TASK',
+        wc: n.data.wc || 'WC',
+        terminal: n.data.terminal === 'true',
+        kitImpact: parseInt(n.data.kitImpact || '0', 10) || 0,
+        mandatory: n.data.mandatory !== 'false',
+        formulasText: n.data.formulasText || '',
+        position: area.area.transform.objects.get(n.id)?.position || [0,0]
+      }));
+
+      const edges = [...editor.getConnections()].map(c => ({ from: c.source, to: c.target }));
+
+      // build depends
+      const depends = {};
+      edges.forEach(e => { (depends[e.to] ||= []).push(e.from); });
+
+      const runTasks = nodes.map(n => ({
+        taskType: n.taskType,
+        wc: n.wc,
+        isTerminal: n.terminal,
+        dependsOn: (depends[n.id] || []).map(id => (editor.getNode(id)?.data.taskType || 'TASK'))
+      }));
+
+      const formulasByTask = {};
+      nodes.forEach(n => {
+        const map = {};
+        (n.formulasText||'').split(/\r?\n/).forEach(ln => {
+          const m = ln.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.+)$/);
+          if (m) map[m[1]] = m[2].trim();
+        });
+        if (Object.keys(map).length) formulasByTask[n.taskType] = map;
+      });
+
+      const payload = {
+        productCode: 'ROLLER_STD',
+        graph: { nodes, edges },
+        runtime: { tasks: runTasks, formulasByTask }
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'tech_rules_export.json';
+      a.click();
+    }
+
+    // seed
+    const n1 = await addTaskNode(80, 120, { taskType:'CUT_FABRIC', wc:'FAB', kitImpact:'10', mandatory:'true',
+      formulasText: 'fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)'
+    });
+    const n2 = await addTaskNode(80, 280, { taskType:'CUT_PROFILE', wc:'PRF', kitImpact:'10', mandatory:'true',
+      formulasText: 'tube_length_mm = =ROUND(width_mm - 2, 0)'
+    });
+    const n3 = await addTaskNode(460, 200, { taskType:'ASM_ROLLER', wc:'ASM', terminal:'true', kitImpact:'100', mandatory:'true' });
+
+    await editor.addConnection(new ClassicPreset.Connection(n1, 'out', n3, 'inp'));
+    await editor.addConnection(new ClassicPreset.Connection(n2, 'out', n3, 'inp'));
+
+    // view/zoom
+    AreaExtensions.zoomAt(area, editor.getNodes(), { scale: 0.9 });
+
+    // toolbar
+    document.getElementById('btnAdd').onclick = async () => { await addTaskNode(120,120) };
+    document.getElementById('btnAuto').onclick = async () => {
+      await arrange.arrange();
+      AreaExtensions.zoomAt(area, editor.getNodes(), { scale: 0.95 });
+    };
+    document.getElementById('btnUndo').onclick = () => history.undo();
+    document.getElementById('btnRedo').onclick = () => history.redo();
+    document.getElementById('btnDelete').onclick = () => {
+      const sel = area.selection?.getSelected() || [];
+      sel.forEach(ent => editor.removeEntity(ent));
+    };
+    document.getElementById('btnExport').onclick = exportRuntime;
+  </script>
+</body>
+</html>

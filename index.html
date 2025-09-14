@@ -22,15 +22,78 @@
       <div id="rete"></div>
     </div>
     <div class="side">
-      <div class="panel">
-        <h3>Tips</h3>
-        <div class="hint">
-          • Start node: <b>Job Received</b> (only OUT).<br/>
-          • Finish node: <b>Product Completed • Print Label</b> (only IN).<br/>
-          • Add tasks with the button, drag to connect. Connections are animated.<br/>
-          • Export JSON → graph + runtime (tasks only).<br/>
-        </div>
+<div class="side">
+  <!-- Task settings -->
+  <div class="panel">
+    <h3>Task Settings</h3>
+
+    <div class="field">
+      <label for="taskType">Task Type</label>
+      <input id="taskType" type="text" value="CUT_FABRIC" />
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="workCenter">Work Center</label>
+        <select id="workCenter">
+          <option value="FAB" selected>FAB</option>
+          <option value="ASM">ASM</option>
+          <option value="QC">QC</option>
+        </select>
       </div>
+
+      <div class="field">
+        <label for="terminal">Terminal</label>
+        <select id="terminal">
+          <option value="no" selected>No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="kitImpact">Kit Impact</label>
+        <input id="kitImpact" type="number" value="10" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="required">Required</label>
+        <select id="required">
+          <option value="yes" selected>Yes</option>
+          <option value="no">No</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="excelFormula">Formulas (Excel style)</label>
+      <textarea id="excelFormula" rows="5">fabric_length_mm = =CEILING((height_mm + 20) * 1.01, 1)</textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="btnPreview">Preview</button>
+      <span class="muted" id="previewInfo">Test with: width=1750, height=2200</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn pill" id="btnPlanJson">PlanJson (demo)</button>
+    </div>
+  </div>
+
+  <!-- Tips -->
+  <div class="panel">
+    <h3>Tips</h3>
+    <div class="hint">
+      • Start node: <b>Job Received</b> (OUT only).<br/>
+      • Finish node: <b>Product Completed • Print Label</b> (IN only).<br/>
+      • Link cards: <b>Source → Target</b> (dependency).<br/>
+      • Export JSON → graph &amp; runtime (dependsOn, formulas).<br/>
+      • Styling follows <b>Lauresta</b> (orange accents).<br/>
+    </div>
+  </div>
+</div>
+
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>
