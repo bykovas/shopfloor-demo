@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ShopfloorPilot — Live Flow (WOW demo)</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111111; --muted:#666a73;
+    --brand:#FFAA00; --line:#e6ecf2; --cut:#f8fafc; --sew:#fffdf6; --asm:#f6fbff;
+    --ok:#16a34a; --warn:#f59e0b; --bad:#e11d48; --dark:#0d0d0d;
+  }
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  .header{
+    background:var(--dark); color:#fff; padding:16px 20px; display:flex; align-items:center; gap:18px;
+    border-bottom:4px solid var(--brand);
+  }
+  .logo{font-weight:800; letter-spacing:.5px}
+  .badge{background:var(--brand); color:#111; border-radius:10px; padding:4px 8px; font-weight:600}
+  .sub{color:#cdd3db}
+  .wrap{max-width:1200px; margin:18px auto; padding:0 16px}
+  .toolbar{display:flex; gap:8px; align-items:center; margin:8px 0 14px}
+  button{
+    border:1px solid var(--line); background:#fff; border-radius:10px; padding:10px 12px; cursor:pointer;
+    font-weight:600;
+  }
+  button:hover{background:#fff7e6; border-color:#ffd782}
+  .primary{background:var(--brand); border-color:var(--brand)}
+  .grid{display:grid; grid-template-columns: 1fr 290px; gap:16px}
+  .card{border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#fff}
+  .legend{padding:12px}
+  .legend h3{margin:8px 0 10px; font-size:1rem}
+  .row{display:flex; align-items:center; gap:10px; margin:6px 0}
+  .dot{width:18px; height:8px; border-radius:10px}
+  .note{color:var(--muted); font-size:.92rem}
+  .canvas-wrap{position:relative; height:620px; background:
+      linear-gradient(0deg, rgba(0,0,0,0) 0 30px, transparent 30px),
+      linear-gradient(transparent 0 560px, rgba(0,0,0,.02) 560px),
+      linear-gradient(transparent 0 280px, rgba(0,0,0,.02) 280px);
+  }
+  /* Swimlanes */
+  .lane{position:absolute; left:0; right:0; border-top:1px dashed #e9eef5;}
+  .lane .label{position:absolute; left:10px; top:8px; font-weight:700; color:#384252}
+  .lane.cut {top:20px; height:180px; background:var(--cut)}
+  .lane.sew {top:220px; height:160px; background:var(--sew)}
+  .lane.asm {top:400px; height:180px; background:var(--asm)}
+  /* Tooltip */
+  .tooltip{
+    position:absolute; pointer-events:none; background:#111; color:#fff; font-size:.9rem; padding:8px 10px;
+    border-radius:10px; transform:translate(-50%,-105%); white-space:nowrap; z-index:5; opacity:0; transition:.12s;
+  }
+  /* Node cards (HTML over SVG) */
+  .node{
+    position:absolute; transform:translate(-50%,-50%); min-width:160px; max-width:220px;
+    background:#fff; border:1px solid var(--line); border-radius:14px; padding:8px 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.06);
+  }
+  .node .title{display:flex; align-items:center; gap:6px; font-weight:800}
+  .node .title .chip{margin-left:auto; font: 11px/1 ui-monospace,monospace; background:#eef2f8; border:1px solid #d9e1ee; border-radius:8px; padding:2px 6px}
+  .node .kpi{font-size:.85rem; color:var(--muted); margin-top:2px}
+  .node .live{margin-top:6px; padding:6px; border-radius:10px; font: 12px/1.4 ui-monospace,monospace; background:#fffaf1; border:1px solid #ffe0ad}
+  .node .badges{display:flex; gap:6px; margin-top:6px}
+  .badge2{font:11px/1 ui-monospace,monospace; border-radius:8px; padding:2px 6px; border:1px solid #e6ecf2; background:#f7fafc}
+  .node.green{border-color:#ccebd6; box-shadow: 0 8px 20px rgba(0,160,0,.08)}
+  .node.yellow{border-color:#ffe6b3; box-shadow: 0 8px 20px rgba(255,170,0,.12)}
+  .node.red{border-color:#ffc0cb; box-shadow: 0 8px 22px rgba(255,0,70,.14)}
+  .pulse{position:absolute; left:50%; top:50%; width:120px; height:120px; transform:translate(-50%,-50%);
+    border-radius:50%; pointer-events:none; opacity:.22; filter:blur(10px);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%{transform:translate(-50%,-50%) scale(0.7); opacity:.16}
+    50%{transform:translate(-50%,-50%) scale(1); opacity:.32}
+    100%{transform:translate(-50%,-50%) scale(0.7); opacity:.16}
+  }
+  /* Edge visuals */
+  .edge-path{ fill:none; filter:url(#glow) }
+  .edge-anim{ stroke-dasharray: 12; }
+  /* Bottom explainer */
+  .expl{margin-top:16px; border:1px dashed #e6ecf2; border-radius:14px; padding:12px}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">LAURESTA • ShopfloorPilot</div>
+    <span class="badge">LIVE FLOW</span>
+    <div class="sub">config → monitor → optimize</div>
+  </div>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <button id="btnExportJson" class="primary">Export JSON — Dump situation</button>
+      <button id="btnExportPng">Export PNG — Snapshot</button>
+      <div class="note">Thickness = throughput / queue · Color = time (mean)</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="canvas-wrap" id="canvasWrap">
+          <!-- swimlanes -->
+          <div class="lane cut"><div class="label">CUT</div></div>
+          <div class="lane sew"><div class="label">SEW</div></div>
+          <div class="lane asm"><div class="label">ASM</div></div>
+
+          <!-- SVG layer -->
+          <svg id="svg" width="100%" height="100%" viewBox="0 0 900 620" style="position:absolute;inset:0;">
+            <defs>
+              <!-- arrow head -->
+              <marker id="arrow" markerWidth="18" markerHeight="12" refX="14" refY="6" orient="auto">
+                <path d="M2,2 L16,6 L2,10 Z" fill="#333"/>
+              </marker>
+              <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <!-- edges go here -->
+            <g id="edges"></g>
+            <!-- labels go here -->
+            <g id="edge-labels"></g>
+          </svg>
+
+          <!-- HTML nodes layer -->
+          <div id="nodes"></div>
+
+          <!-- tooltip -->
+          <div id="tooltip" class="tooltip"></div>
+        </div>
+      </div>
+
+      <div class="card legend">
+        <h3>Legend</h3>
+        <div class="row"><div class="dot" style="background:#24a148"></div> Node color — mean process time (green/yellow/red)</div>
+        <div class="row"><div class="dot" style="background:#f1c21b"></div> Edge color — mean queue wait (green→yellow→red)</div>
+        <div class="row"><div class="dot" style="background:#111; height:4px"></div> Edge thickness — throughput / items in queue</div>
+        <div class="row"><div class="dot" style="background:linear-gradient(90deg,#fff 0 50%,transparent 50% 100%); border:1px solid #ddd"></div> Flow animation — speed ~ throughput</div>
+        <div class="note">Hover nodes/edges for details. Live task, WIP, queue, throughput — inside.</div>
+      </div>
+    </div>
+
+    <div class="expl">
+      <b>What you see:</b> configuration and live telemetry merged in one view.
+      Colors instantly show bottlenecks; edges “carry” animated flow proportional to the load.
+      Use “Dump situation” to export the current metrics snapshot; “Export PNG” to attach a visual to a report.
+    </div>
+  </div>
+
+<script>
+/* ================== Embedded demo data (can be replaced live) ================== */
+const flow = {
+  meta: { code: "roller_flow_v1", windowMin: 240, nowTs: new Date().toISOString() },
+  nodes: [
+    { id:"cut_fabric", name:"Cut Fabric", lane:"CUT", x:160, y:110,
+      metrics:{ process:{ meanSec: 310, p50Sec:290, p90Sec:540 }, wipNow:3, operators:1 },
+      live:{ orderNo:"RL-2025-01021", taskId: 991001, elapsedSec: 185, status:"InProgress" },
+      thresholds:{ processMean:{ greenMax:360, yellowMax:600 } }
+    },
+    { id:"cut_profiles", name:"Cut Profiles", lane:"CUT", x:160, y:310,
+      metrics:{ process:{ meanSec: 260, p50Sec:240, p90Sec:480 }, wipNow:1, operators:1 },
+      live:null,
+      thresholds:{ processMean:{ greenMax:300, yellowMax:540 } }
+    },
+    { id:"assembly", name:"Assembly", lane:"ASM", x:520, y:490,
+      metrics:{ process:{ meanSec: 720, p50Sec:680, p90Sec:1200 }, wipNow:7, operators:2 },
+      live:{ orderNo:"RL-2025-01033", taskId: 991055, elapsedSec: 92, status:"InProgress" },
+      thresholds:{ processMean:{ greenMax:600, yellowMax:900 } }
+    },
+    { id:"sewing", name:"Edge Sewing", lane:"SEW", x:520, y:270,
+      metrics:{ process:{ meanSec: 430, p50Sec:400, p90Sec:880 }, wipNow:2, operators:1 },
+      live:null,
+      thresholds:{ processMean:{ greenMax:420, yellowMax:700 } }
+    }
+  ],
+  edges: [
+    { id:"e1", from:"cut_fabric",   to:"sewing",   label:"Fabric → Sew",   queue:{ meanSec: 280, p50Sec:120, p90Sec:780, inQueueNow:2 }, throughputPerHour: 18 },
+    { id:"e2", from:"sewing",       to:"assembly", label:"Sew → ASM",      queue:{ meanSec: 1180, p50Sec:600, p90Sec:2400, inQueueNow:5 }, throughputPerHour: 11 },
+    { id:"e3", from:"cut_profiles", to:"assembly", label:"Profiles → ASM", queue:{ meanSec: 180, p50Sec:120, p90Sec:600, inQueueNow:1 },  throughputPerHour: 21 }
+  ]
+};
+
+/* ================== Helpers: color/scale/paths/tooltip ================== */
+const svg = document.getElementById('svg');
+const gEdges = document.getElementById('edges');
+const gLabels = document.getElementById('edge-labels');
+const nodesLayer = document.getElementById('nodes');
+const tooltip = document.getElementById('tooltip');
+
+function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function colorQueue(meanSec, thr={green:600,yellow:1500}){ // edges: queue wait
+  if(meanSec<=thr.green) return '#16a34a';
+  if(meanSec<=thr.yellow) return '#f59e0b';
+  return '#e11d48';
+}
+function colorProcess(meanSec, thr={green:600,yellow:900}){ // nodes: process time
+  if(meanSec<=thr.green) return 'green';
+  if(meanSec<=thr.yellow) return 'yellow';
+  return 'red';
+}
+function classFromColor(col){
+  return col==='green'?'green':(col==='yellow'?'yellow':'red');
+}
+function thickness(queueItems, tput){
+  // комбинируем: база от очереди, прибавка от throughput
+  const base = 2 + (queueItems||0)*1.4;
+  const add  = tput ? clamp(tput/10, 0, 4) : 0;
+  return clamp(base + add, 2, 14);
+}
+function flowSpeed(tput){ // px/sec для анимации штриха
+  if(!tput) return 24;
+  return clamp(10 + tput*2.2, 14, 80);
+}
+
+function nodeCenterPx(n){
+  // html-слой и svg имеют один viewBox, координаты совпадают
+  return { x:n.x, y:n.y };
+}
+function cubicPath(a,b){
+  // плавная S-дуга в зависимости от горизонтальной дистанции
+  const dx = (b.x - a.x);
+  const k = clamp(Math.abs(dx)*0.35, 60, 220);
+  const c1 = { x: a.x + k, y: a.y };
+  const c2 = { x: b.x - k, y: b.y };
+  return `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
+}
+function midPointOnCubic(a,b){
+  // approximation via t=0.5 on control points
+  const dx = (b.x - a.x);
+  const k = clamp(Math.abs(dx)*0.35, 60, 220);
+  const c1 = { x: a.x + k, y: a.y };
+  const c2 = { x: b.x - k, y: b.y };
+  const t=0.5;
+  const x = Math.pow(1-t,3)*a.x + 3*Math.pow(1-t,2)*t*c1.x + 3*(1-t)*Math.pow(t,2)*c2.x + Math.pow(t,3)*b.x;
+  const y = Math.pow(1-t,3)*a.y + 3*Math.pow(1-t,2)*t*c1.y + 3*(1-t)*Math.pow(t,2)*c2.y + Math.pow(t,3)*b.y;
+  return {x,y};
+}
+
+/* ================== Render nodes (HTML) ================== */
+function renderNodes(){
+  nodesLayer.innerHTML='';
+  flow.nodes.forEach(n=>{
+    const col = colorProcess(n.metrics.process.meanSec, {
+      green: n.thresholds.processMean.greenMax,
+      yellow: n.thresholds.processMean.yellowMax
+    });
+    const div = document.createElement('div');
+    div.className = `node ${classFromColor(col)}`;
+    div.style.left = `${n.x}px`;
+    div.style.top  = `${n.y}px`;
+
+    // pulse glow
+    const glow = document.createElement('div');
+    glow.className = 'pulse';
+    glow.style.background = col==='green'
+      ? 'radial-gradient(circle, rgba(22,163,74,.35) 0%, rgba(22,163,74,0) 60%)'
+      : col==='yellow'
+      ? 'radial-gradient(circle, rgba(245,158,11,.35) 0%, rgba(245,158,11,0) 60%)'
+      : 'radial-gradient(circle, rgba(225,29,72,.35) 0%, rgba(225,29,72,0) 60%)';
+    div.appendChild(glow);
+
+    const title = document.createElement('div');
+    title.className='title';
+    title.innerHTML = `${laneIcon(n.lane)} ${n.name} <span class="chip">${n.lane}</span>`;
+    div.appendChild(title);
+
+    const kpi = document.createElement('div');
+    kpi.className='kpi';
+    kpi.textContent = `mean ${Math.round(n.metrics.process.meanSec/60)}m • p90 ${Math.round(n.metrics.process.p90Sec/60)}m`;
+    div.appendChild(kpi);
+
+    const badges = document.createElement('div');
+    badges.className='badges';
+    const b1 = document.createElement('div'); b1.className='badge2'; b1.textContent=`WIP ${n.metrics.wipNow}`;
+    const b2 = document.createElement('div'); b2.className='badge2'; b2.textContent=`Ops ${n.metrics.operators}`;
+    badges.appendChild(b1); badges.appendChild(b2);
+    div.appendChild(badges);
+
+    if(n.live){
+      const live = document.createElement('div');
+      live.className='live';
+      live.textContent = `Now: ${n.live.orderNo} • ${Math.round(n.live.elapsedSec/60)}m`;
+      div.appendChild(live);
+    }
+
+    // tooltip for node
+    div.addEventListener('mousemove', (e)=>showTipNode(n, e.clientX, e.clientY));
+    div.addEventListener('mouseleave', hideTip);
+
+    nodesLayer.appendChild(div);
+  });
+}
+
+function laneIcon(lane){
+  switch(lane){
+    case 'CUT': return '✂️';
+    case 'SEW': return '🧵';
+    case 'ASM': return '🛠️';
+    default: return '🔸';
+  }
+}
+
+/* ================== Render edges (SVG) ================== */
+const edgeAnim = []; // keep speeds & refs
+
+function renderEdges(){
+  gEdges.innerHTML=''; gLabels.innerHTML=''; edgeAnim.length=0;
+
+  const byId = Object.fromEntries(flow.nodes.map(n=>[n.id,n]));
+  flow.edges.forEach(e=>{
+    const a = nodeCenterPx(byId[e.from]);
+    const b = nodeCenterPx(byId[e.to]);
+    const d = cubicPath(a,b);
+    const mean = e.queue.meanSec;
+    const stroke = colorQueue(mean);
+    const thick  = thickness(e.queue.inQueueNow, e.throughputPerHour);
+    const speed  = flowSpeed(e.throughputPerHour);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', d);
+    path.setAttribute('class','edge-path edge-anim');
+    path.setAttribute('stroke', stroke);
+    path.setAttribute('stroke-width', thick);
+    path.setAttribute('marker-end','url(#arrow)');
+    path.setAttribute('stroke-linecap','round');
+    path.setAttribute('stroke-linejoin','round');
+    gEdges.appendChild(path);
+
+    const mid = midPointOnCubic(a,b);
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', mid.x);
+    label.setAttribute('y', mid.y - (10 + thick));
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size','12');
+    label.setAttribute('fill','#2b2f36');
+    label.textContent = `${e.label} • wait ${Math.round(mean/60)}m • q=${e.queue.inQueueNow} • tph=${e.throughputPerHour}`;
+    gLabels.appendChild(label);
+
+    // hover (edge)
+    const edgeBox = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    edgeBox.setAttribute('x', Math.min(a.x,b.x));
+    edgeBox.setAttribute('y', Math.min(a.y,b.y));
+    edgeBox.setAttribute('width', Math.abs(b.x-a.x));
+    edgeBox.setAttribute('height', Math.abs(b.y-a.y) + 24);
+    edgeBox.setAttribute('fill','transparent');
+    edgeBox.style.pointerEvents='stroke';
+    // add listeners to path (more precise)
+    path.addEventListener('mousemove',(ev)=>showTipEdge(e, ev.clientX, ev.clientY));
+    path.addEventListener('mouseleave', hideTip);
+
+    edgeAnim.push({ path, speed, offset:0 });
+  });
+}
+
+/* ================== Animation loop ================== */
+let lastTs = 0;
+function tick(ts){
+  if(!lastTs) lastTs = ts;
+  const dt = (ts - lastTs)/1000.0; // seconds
+  lastTs = ts;
+  edgeAnim.forEach(a=>{
+    a.offset = (a.offset + a.speed*dt);
+    a.path.style.strokeDashoffset = -a.offset;
+  });
+  requestAnimationFrame(tick);
+}
+
+/* ================== Tooltip ================== */
+function showTipNode(n, cx, cy){
+  tooltip.style.opacity=1;
+  tooltip.textContent = `${n.name} — mean ${Math.round(n.metrics.process.meanSec/60)}m (p90 ${Math.round(n.metrics.process.p90Sec/60)}m) • WIP ${n.metrics.wipNow} • Ops ${n.metrics.operators}`
+    + (n.live?` • Now ${n.live.orderNo} (${Math.round(n.live.elapsedSec/60)}m)`:``);
+  moveTip(cx, cy);
+}
+function showTipEdge(e, cx, cy){
+  tooltip.style.opacity=1;
+  tooltip.textContent = `${e.label} — queue mean ${Math.round(e.queue.meanSec/60)}m (p90 ${Math.round(e.queue.p90Sec/60)}m) • in queue ${e.queue.inQueueNow} • throughput ${e.throughputPerHour}/h`;
+  moveTip(cx, cy);
+}
+function moveTip(cx, cy){
+  const rect = document.getElementById('canvasWrap').getBoundingClientRect();
+  tooltip.style.left = (cx - rect.left) + 'px';
+  tooltip.style.top  = (cy - rect.top) + 'px';
+}
+function hideTip(){ tooltip.style.opacity=0; }
+
+/* ================== Exporters ================== */
+document.getElementById('btnExportJson').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(flow,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ShopfloorPilot_${flow.meta.code}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// PNG snapshot: собираем SVG + простые ноды в SVG, затем рендерим в canvas
+document.getElementById('btnExportPng').addEventListener('click', async ()=>{
+  const {svgString, w, h} = composeSnapshotSVG();
+  const img = new Image();
+  const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h);
+    ctx.drawImage(img,0,0);
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ShopfloorPilot_${flow.meta.code}_snapshot.png`;
+    a.click();
+  };
+  img.src = svgUrl;
+});
+
+function composeSnapshotSVG(){
+  const w=900, h=620;
+  // clone edges and labels
+  const edgesClone = gEdges.cloneNode(true);
+  const labelsClone = gLabels.cloneNode(true);
+
+  // add simplified node boxes into SVG
+  const svgTemp = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svgTemp.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  svgTemp.setAttribute('width', w); svgTemp.setAttribute('height', h);
+  svgTemp.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // bg
+  const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bg.setAttribute('x',0); bg.setAttribute('y',0); bg.setAttribute('width',w); bg.setAttribute('height',h);
+  bg.setAttribute('fill','#ffffff');
+  svgTemp.appendChild(bg);
+
+  // swimlanes
+  const lanes = [
+    {y:20, h:180, color:'#f8fafc', label:'CUT'},
+    {y:220, h:160, color:'#fffdf6', label:'SEW'},
+    {y:400, h:180, color:'#f6fbff', label:'ASM'}
+  ];
+  lanes.forEach(l=>{
+    const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('x',0); r.setAttribute('y',l.y); r.setAttribute('width',w); r.setAttribute('height',l.h);
+    r.setAttribute('fill', l.color); r.setAttribute('stroke','#e9eef5'); r.setAttribute('stroke-dasharray','4 6');
+    svgTemp.appendChild(r);
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',12); t.setAttribute('y',l.y+18); t.setAttribute('fill','#384252'); t.setAttribute('font-weight','700'); t.textContent=l.label;
+    svgTemp.appendChild(t);
+  });
+
+  // edges (without dash animation)
+  edgesClone.querySelectorAll('path').forEach(p=>p.removeAttribute('stroke-dasharray'));
+  svgTemp.appendChild(edgesClone);
+  svgTemp.appendChild(labelsClone);
+
+  // nodes as boxes
+  flow.nodes.forEach(n=>{
+    const col = colorProcess(n.metrics.process.meanSec, {
+      green: n.thresholds.processMean.greenMax,
+      yellow: n.thresholds.processMean.yellowMax
+    });
+    const group = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', n.x-80); rect.setAttribute('y', n.y-44);
+    rect.setAttribute('rx', 12); rect.setAttribute('ry', 12);
+    rect.setAttribute('width', 160); rect.setAttribute('height', 88);
+    rect.setAttribute('fill', '#fff');
+    rect.setAttribute('stroke', col==='green'?'#ccebd6':(col==='yellow'?'#ffe6b3':'#ffc0cb'));
+    rect.setAttribute('stroke-width','2');
+    group.appendChild(rect);
+
+    const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x', n.x); t1.setAttribute('y', n.y-20); t1.setAttribute('text-anchor','middle');
+    t1.setAttribute('font-weight','700'); t1.textContent = n.name;
+    group.appendChild(t1);
+
+    const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t2.setAttribute('x', n.x); t2.setAttribute('y', n.y); t2.setAttribute('text-anchor','middle');
+    t2.setAttribute('font-size','12'); t2.setAttribute('fill','#666a73');
+    t2.textContent = `mean ${Math.round(n.metrics.process.meanSec/60)}m • WIP ${n.metrics.wipNow} • Ops ${n.metrics.operators}`;
+    group.appendChild(t2);
+
+    if(n.live){
+      const t3 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t3.setAttribute('x', n.x); t3.setAttribute('y', n.y+20); t3.setAttribute('text-anchor','middle');
+      t3.setAttribute('font-size','12'); t3.setAttribute('fill','#8b5e00');
+      t3.textContent = `Now: ${n.live.orderNo} • ${Math.round(n.live.elapsedSec/60)}m`;
+      group.appendChild(t3);
+    }
+    svgTemp.appendChild(group);
+  });
+
+  const svgString = new XMLSerializer().serializeToString(svgTemp);
+  return { svgString, w, h };
+}
+
+/* ================== Boot ================== */
+function layoutFromLane(n){
+  // уже заданы x,y; функция оставлена на будущее (авто-верстка по дорожкам)
+  return n;
+}
+function renderAll(){
+  renderNodes();
+  renderEdges();
+  requestAnimationFrame(tick);
+}
+
+renderAll();
+</script>
+</body>
+</html>
