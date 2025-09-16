@@ -138,7 +138,7 @@ class StartNode extends ClassicPreset.Node {
 // Finish: only IN
 class FinishNode extends ClassicPreset.Node {
   width = 240; height = 80
-  constructor(title = 'Assemble Product • Label') {
+  constructor(title = 'Finish Product • Print Label') {
     super(title)
     this._kind = 'finish'
     this.addInput('inp', new ClassicPreset.Input(any, 'flow', true))
@@ -147,11 +147,12 @@ class FinishNode extends ClassicPreset.Node {
 
 // Task: visible TaskType + WC (compact)
 class TaskNode extends ClassicPreset.Node {
-  width = 280; height = 280
+  width = 280; height = 320   // компактнее — мы больше не показываем контролы
   constructor(init = {}) {
     super(init.title ?? (init.taskType ?? 'Task'))
     this._kind = 'task'
 
+    // keep internal defaults (если где-то нужны)
     this._defaults = {
       terminal: !!init.terminal,
       mandatory: init.mandatory ?? true,
@@ -160,16 +161,49 @@ class TaskNode extends ClassicPreset.Node {
       wc: init.wc ?? 'WC'
     }
 
+    // I/O как было
     this.addInput('inp', new ClassicPreset.Input(any, 'dependsOn', true))
     this.addOutput('out', new ClassicPreset.Output(any, 'prerequisite'))
 
-    // ✅ correct types + easy labels (labels = control keys)
+    // ✅ Hardcoded display-only fields (allow simple HTML in values)
+    this._info = {
+      'CONWIP Group': 'LINE-01',
+      'Label template': 'SEMI_06 (semi finished)',
+      'Task code': 'cutting_id',
+      'Def. duration': '300 sek',
+      'Batching rule': 'by size and color',
+      'Notes': 'Sazinigumo taisykle taikoma priverstinai'
+    }
+
     this.addControl('Task type', new ClassicPreset.InputControl('text',   { initial: init.taskType ?? 'CUTTING MACHINE OP' }))
-    this.addControl('Work center', new ClassicPreset.InputControl('text', { initial: this._defaults.wc }))
-    this.addControl('Kit impact', new ClassicPreset.InputControl('number',{ initial: this._defaults.kitImpact, min:0 }))
-    this.addControl('Terminal (Yes/No)', new ClassicPreset.InputControl('checkbox', { initial: this._defaults.terminal }))
-    this.addControl('Mandatory (Yes/No)', new ClassicPreset.InputControl('checkbox', { initial: this._defaults.mandatory }))
   }
+}
+
+
+// Render a read-only KV block inside a node (Shadow-DOM safe)
+async function renderInfoBlock(area, node, info) {
+  await waitMounted()
+  const view = area.nodeViews?.get(node.id)
+  const host = view?.element || view?.root || null
+  if (!host) return
+
+  const box = host.querySelector('.node') || host
+  let wrap = box.querySelector('.kv-info')
+  if (!wrap) {
+    wrap = document.createElement('div')
+    wrap.className = 'kv-info'
+    wrap.style.marginTop = '8px'
+    wrap.style.paddingTop = '6px'
+    wrap.style.borderTop = '1px dashed rgba(0,0,0,.15)'
+    wrap.style.font = '13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial'
+    box.appendChild(wrap)
+  }
+
+  // Build inner HTML (keys bold, values plain; HTML allowed only in value)
+  const rows = Object.entries(info || {}).map(([k, v]) =>
+    `<div style="margin:2px 0"><b>${k}:</b> ${v ?? ''}</div>`
+  ).join('')
+  wrap.innerHTML = rows
 }
 
 
@@ -254,7 +288,7 @@ async function setup() {
 
   // Initial: only Start and Finish (no connection)
   const start = new StartNode('Job Received')
-  const finish = new FinishNode('Assemble Product • Label')
+  const finish = new FinishNode('Finish Product • Print Label')
 
   await editor.addNode(start)
   await editor.addNode(finish)
@@ -281,15 +315,16 @@ async function setup() {
   const $ = id => document.getElementById(id)
 
   // Add Task — create regular task node, place to the right and colorize
-  $('btnAdd').onclick = async () => {
-    const nodes = editor.getNodes()
-    const last = nodes.at(-1)
-    const n = new TaskNode({ title:'Task', taskType:'TASK', wc:'WC' })
-    await editor.addNode(n)
-    n.position = [(last?.position?.[0]??120)+480, last?.position?.[1]??220]
-    await colorizeNode(area, n, 'task')
-    await AreaExtensions.zoomAt?.(area, editor.getNodes())
-  }
+$('btnAdd').onclick = async () => {
+  const nodes = editor.getNodes()
+  const last = nodes.at(-1)
+  const n = new TaskNode({ title:'Task', taskType:'TASK', wc:'WC' })
+  await editor.addNode(n)
+  n.position = [(last?.position?.[0]??120)+480, last?.position?.[1]??220]
+  await colorizeNode(area, n, 'task')
+  await renderInfoBlock(area, n, n._info)
+  await AreaExtensions.zoomAt?.(area, editor.getNodes())
+}
 
   $('btnAuto').onclick = async () => {
     await arrange.layout?.()
