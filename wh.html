@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WMS WOW Mockup – 3D Warehouse + Panels (Single HTML)</title>
+  <!-- Preload modules (primary CDN: esm.sh) -->
+  <link rel="modulepreload" href="https://esm.sh/three@0.160.0">
+  <link rel="modulepreload" href="https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js">
+  <style>
+    :root{
+      --bg:#ffffff;          /* white background */
+      --card:#f9f9f9ee;      /* light panels */
+      --card-strong:#f2f2f2f2;
+      --text:#222222;        /* dark text */
+      --muted:#666666;
+      --accent:#ffaa00;      /* Lauresta orange */
+      --accent-2:#009688;    /* teal accent */
+      --danger:#d32f2f;      /* red */
+      --warn:#fbc02d;        /* amber */
+      --ok:#388e3c;          /* green */
+      --glass:rgba(255,255,255,.75);
+      --glass-2:rgba(255,255,255,.9);
+      --shadow:0 6px 20px rgba(0,0,0,.1);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, 'Segoe UI Emoji';
+      background: radial-gradient(1200px 800px at 70% 20%, #fff, var(--bg));
+      color:var(--text); overflow:hidden;
+    }
+    /* Layout */
+    .app{position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr auto; grid-template-columns: 320px 1fr 420px; gap:16px; padding:16px}
+    header{grid-column:1/4; display:flex; gap:12px; align-items:center; padding:10px 14px; background:linear-gradient(180deg, rgba(0,0,0,.03), rgba(0,0,0,0)); border-radius:14px}
+    header .brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.3px}
+    header .brand .dot{width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent)}
+    header .kpi{margin-left:auto; display:flex; gap:12px; flex-wrap:wrap}
+    header .chip{padding:6px 10px; border-radius:999px; background:var(--glass); box-shadow: var(--shadow); font-size:12px; color:var(--muted)}
+
+    .left, .right, .bottom{
+      background: var(--card);
+      border:1px solid rgba(0,0,0,.06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+    }
+    .left{padding:14px; display:flex; flex-direction:column; gap:12px}
+    .right{padding:14px; display:flex; flex-direction:column; gap:10px}
+    .scene-wrap{position:relative; background:linear-gradient(180deg, #fafafa, #f0f0f0); border-radius: var(--radius); border:1px solid rgba(0,0,0,.06); box-shadow: var(--shadow)}
+    #scene{position:absolute; inset:0}
+
+    .toolbar{display:flex; gap:8px; align-items:center; padding:8px 10px; background:var(--glass-2); border-radius:12px; position:absolute; left:12px; top:12px; z-index:4; box-shadow: var(--shadow)}
+    .toolbar input, .toolbar select{background:#fff; color:var(--text); border:1px solid rgba(0,0,0,.08); border-radius:10px; padding:8px 10px; outline:none}
+    .toolbar .btn{background:linear-gradient(180deg, #fff, #f0f0f0); border:1px solid rgba(0,0,0,.08); color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer}
+    .legend{position:absolute; right:12px; top:12px; z-index:5; background:var(--glass-2); border-radius:12px; padding:10px 12px; box-shadow: var(--shadow); font-size:12px; color:var(--muted)}
+    .legend .row{display:flex; align-items:center; gap:8px; margin:6px 0}
+    .dot{width:10px; height:10px; border-radius:50%}
+    .dot.ok{background:var(--ok); box-shadow:0 0 8px var(--ok)}
+    .dot.warn{background:var(--warn); box-shadow:0 0 8px var(--warn)}
+    .dot.danger{background:var(--danger); box-shadow:0 0 8px var(--danger)}
+    .dot.res{background:var(--accent); box-shadow:0 0 8px var(--accent)}
+
+    .panel-title{font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+    .ops{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .btn{
+      padding:12px 10px; border-radius:12px; background:linear-gradient(180deg, #fff, #f5f5f5);
+      border:1px solid rgba(0,0,0,.08); color:var(--text); cursor:pointer; box-shadow: var(--shadow);
+      display:flex; align-items:center; gap:8px; justify-content:center; transition: transform .08s ease;
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn.ok{outline:1px solid rgba(56,142,60,.25)}
+    .btn.warn{outline:1px solid rgba(251,192,45,.25)}
+    .btn.danger{outline:1px solid rgba(211,47,47,.25)}
+
+    .list{display:flex; flex-direction:column; gap:8px; max-height:28vh; overflow:auto}
+    .card{background:var(--glass); border-radius:12px; padding:10px; border:1px solid rgba(0,0,0,.06)}
+    .grid{display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center}
+
+    .right .detail{background:var(--glass); border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:12px}
+    .detail .row{display:flex; justify-content:space-between; margin:4px 0; color:var(--muted)}
+
+    .fin{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
+
+    .tag{padding:4px 8px; border-radius:999px; background:rgba(0,0,0,.06); font-size:12px; color:var(--muted)}
+
+    .bottom{grid-column:1/4; padding:10px 14px; display:flex; align-items:center; gap:16px}
+    .bottom .spacer{flex:1}
+
+    .spark{
+      position:absolute; pointer-events:none; width:6px; height:6px; border-radius:50%;
+      background: radial-gradient(circle at center, #ffaa00, rgba(255,170,0,.1));
+      filter: blur(0.5px); opacity:.8; animation: fly 6s linear infinite;
+    }
+    @keyframes fly{ from{ transform: translate3d(0,0,0)} to{ transform: translate3d(800px,-400px,0)} }
+
+    /* Scrollbars subtle */
+    ::-webkit-scrollbar{height:10px;width:10px}
+    ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1); border-radius:999px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand"><span class="dot"></span> LKvitai - WMS LIVE · 3D</div>
+      <div class="chip">Warehouse: Main · Aisles A–H</div>
+      <div class="chip">Logged in: Operator #12</div>
+      <div class="kpi">
+        <div class="chip">On‑hand: <b id="kpiQty">—</b></div>
+        <div class="chip">SKUs: <b id="kpiSkus">—</b></div>
+        <div class="chip">Alerts: <b id="kpiAlerts">0</b></div>
+        <div class="chip" id="selfTest">Self‑test: —</div>
+      </div>
+    </header>
+
+    <!-- LEFT PANEL: Operations -->
+    <section class="left">
+      <div class="panel-title">Operations</div>
+      <div class="ops">
+        <button class="btn ok" id="opReceive">📥 Receive</button>
+        <button class="btn" id="opTransfer">🔁 Transfer</button>
+        <button class="btn warn" id="opInventory">📋 Inventory</button>
+        <button class="btn danger" id="opScrap">🗑️ Scrap</button>
+      </div>
+
+      <div class="panel-title">Recent actions</div>
+      <div class="list" id="recent"></div>
+
+      <div class="panel-title">Shortcuts</div>
+      <div class="ops">
+        <button class="btn" id="btnZoomToEmpty">🔎 Empty slots</button>
+        <button class="btn" id="btnZoomToAlerts">⚠️ Low stock</button>
+      </div>
+    </section>
+
+    <!-- CENTER: 3D SCENE -->
+    <section class="scene-wrap">
+      <div class="toolbar">
+        <select id="selWarehouse" title="Warehouse">
+          <option>Main</option>
+          <option>Aux</option>
+          <option>Cold</option>
+        </select>
+        <select id="selCategory" title="Category">
+          <option>All categories</option>
+          <option>Textile</option>
+          <option>Green</option>
+          <option>Hardware</option>
+        </select>
+        <input id="searchSku" placeholder="Search SKU / bin..." />
+        <button class="btn" id="btnFind">Find</button>
+      </div>
+      <div class="legend">
+        <div class="row"><span class="dot ok"></span> Full</div>
+        <div class="row"><span class="dot warn"></span> Low</div>
+        <div class="row"><span class="dot danger"></span> Empty</div>
+        <div class="row"><span class="dot res"></span> Reserved</div>
+      </div>
+      <div id="scene"></div>
+      <div class="spark" style="left:30%; top:75%"></div>
+      <div class="spark" style="left:50%; top:65%; animation-delay:.8s"></div>
+      <div class="spark" style="left:60%; top:80%; animation-delay:1.4s"></div>
+    </section>
+
+    <!-- RIGHT PANEL: Details -->
+    <section class="right">
+      <div class="panel-title">Selection</div>
+      <div class="detail" id="detail">
+        <div class="row"><span>Object</span><b id="dType">—</b></div>
+        <div class="row"><span>Code</span><b id="dCode">—</b></div>
+        <div class="row"><span>SKU</span><b id="dSku">—</b></div>
+        <div class="row"><span>Qty</span><b id="dQty">—</b></div>
+        <div class="row"><span>Status</span><b id="dStatus">—</b></div>
+        <div class="row"><span>Since</span><b id="dSince">—</b></div>
+        <div class="row"><span>Location</span><b id="dLoc">—</b></div>
+      </div>
+
+      <div class="panel-title">Actions</div>
+      <div class="ops">
+        <button class="btn" id="actPick">📦 Pick</button>
+        <button class="btn" id="actReserve">🔖 Reserve</button>
+        <button class="btn warn" id="actRelabel">🏷️ Re‑label</button>
+        <button class="btn danger" id="actQuarantine">🚫 Quarantine</button>
+      </div>
+
+      <div class="panel-title">Notes</div>
+      <div class="card" id="notes">Click any pallet/bin/rack to see details. Use mouse to orbit, right‑click to pan, wheel to zoom.</div>
+    </section>
+
+    <!-- BOTTOM: Valuation / Finance Controls -->
+    <section class="bottom">
+      <div class="panel-title">Valuation</div>
+      <div class="tag">Avg cost: <b id="avgCost">€—</b></div>
+      <div class="tag">On‑hand value: <b id="onHandVal">€—</b></div>
+      <div class="tag">Period COGS: <b id="periodCogs">€—</b></div>
+
+      <div class="spacer"></div>
+
+      <button class="btn" id="finAdj">➕ Value Adjustment (P&L)</button>
+      <button class="btn warn" id="finReval">📉 Revaluation</button>
+      <button class="btn ok" id="finLanded">🚚 Landed Cost</button>
+    </section>
+  </div>
+
+  <!-- ES Module bootstrap with TOP-LEVEL AWAIT and robust CDN fallbacks -->
+  <script type="module">
+    const V = '0.160.0';
+    const candidates = [
+      { name:'esm.sh', three:`https://esm.sh/three@${V}`, orbit:`https://esm.sh/three@${V}/examples/jsm/controls/OrbitControls.js` },
+      // unpkg with ?module rewrites bare imports in many cases
+      { name:'unpkg', three:`https://unpkg.com/three@${V}/build/three.module.js`, orbit:`https://unpkg.com/three@${V}/examples/jsm/controls/OrbitControls.js?module` },
+      // jsDelivr (OrbitControls may keep bare specifiers; works in some setups)
+      { name:'jsdelivr', three:`https://cdn.jsdelivr.net/npm/three@${V}/build/three.module.js`, orbit:`https://cdn.jsdelivr.net/npm/three@${V}/examples/jsm/controls/OrbitControls.js` }
+    ];
+
+    let THREE, OrbitControls, loadedFrom = null, loadError = null;
+    for (const c of candidates) {
+      try {
+        const threeMod = await import(c.three);
+        const orbitMod = await import(c.orbit);
+        THREE = threeMod; // namespace-like usage
+        OrbitControls = orbitMod.OrbitControls || orbitMod.default || orbitMod;
+        if (!THREE?.WebGLRenderer || typeof OrbitControls !== 'function') throw new Error('Bad exports');
+        loadedFrom = c.name; break;
+      } catch (e) {
+        loadError = e; // try next
+      }
+    }
+
+    const selfTestChip = document.getElementById('selfTest');
+    if (!THREE || !OrbitControls) {
+      const msg = 'Failed to load three/OrbitControls from all CDNs';
+      console.error(msg, loadError);
+      if (selfTestChip) {
+        selfTestChip.textContent = 'Self‑test: 0/1 failed (modules)';
+        selfTestChip.style.background = 'rgba(255,85,119,.15)';
+        selfTestChip.title = msg + (loadError? `\nLast error: ${loadError}` : '');
+      }
+      throw new Error(msg);
+    }
+
+    // ---- Scene setup ----
+    const sceneEl = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight);
+    sceneEl.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0a0f18, 40, 140);
+
+    const camera = new THREE.PerspectiveCamera(55, sceneEl.clientWidth/sceneEl.clientHeight, 0.1, 1000);
+    camera.position.set(40, 28, 40);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI*0.49; controls.target.set(20,0,10);
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xaad4ff, 0x09121f, 1.0); scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2); dir.position.set(20,40,10); dir.castShadow = true; scene.add(dir);
+
+    // Floor grid
+    const grid = new THREE.GridHelper(120, 60, 0x1f2a3d, 0x0e1726); scene.add(grid);
+    const floorGeo = new THREE.PlaneGeometry(200, 120); const floorMat = new THREE.MeshPhongMaterial({color:0x0b1320, shininess:8});
+    const floor = new THREE.Mesh(floorGeo, floorMat); floor.rotation.x = -Math.PI/2; floor.position.y = -0.01; scene.add(floor);
+
+    // Racks/pallets data generator
+    const RACKS = []; // each rack -> levels * bays
+    const rng = (a,b)=> a + Math.random()*(b-a);
+
+    const statusColor = {
+      FULL:   new THREE.Color('#4bd37b'), // ok
+      LOW:    new THREE.Color('#ffcc66'), // warn
+      EMPTY:  new THREE.Color('#ff5577'), // danger
+      RSV:    new THREE.Color('#5b9dff')  // reserved
+    };
+
+    const groupScene = new THREE.Group(); scene.add(groupScene);
+
+    // Build a block of racks: 4 rows (z), 6 racks per row (x), each rack 3 levels x 3 bays
+    const rows = 4, cols = 6, levels = 3, bays = 3;
+    const rackW = 4, rackH = 5, rackD = 2.2; // visual size
+    const gapX = 4.4, gapZ = 4.0;           // aisle spacing
+
+    const baseX = 0, baseZ = 0;
+
+    const palletGeo = new THREE.BoxGeometry(1.2, 0.6, 1);
+    const rackFrameMat = new THREE.MeshBasicMaterial({ color:0x2a3c5f, wireframe:true });
+
+    const pickables = []; // for raycaster
+
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const rack = new THREE.Group();
+        const posX = baseX + c*gapX; const posZ = baseZ + r*gapZ;
+        rack.position.set(posX, 0, posZ);
+
+        // Frame (wire)
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(rackW, rackH, rackD), rackFrameMat);
+        frame.position.set(0, rackH/2, 0);
+        rack.add(frame);
+
+        // Pallet slots
+        const rackData = { code:`R${r+1}-C${c+1}`, pallets:[] };
+        for(let lv=0; lv<levels; lv++){
+          for(let b=0; b<bays; b++){
+            const item = new THREE.Mesh(palletGeo, new THREE.MeshStandardMaterial({ color: 0x425a8b, metalness:.2, roughness:.6 }));
+            const px = -rackW/2 + 0.9 + b* (rackW/(bays));
+            const py = 0.5 + lv* (rackH/levels);
+            const pz = 0;
+            item.position.set(px, py, pz);
+            item.castShadow = true; item.receiveShadow = true;
+
+            // Assign random status & qty/SKU
+            const roll = Math.random();
+            let status = 'FULL';
+            if(roll<0.12) status = 'EMPTY'; else if(roll<0.25) status='LOW'; else if(roll<0.32) status='RSV';
+            const mat = item.material; mat.color.copy(statusColor[status]);
+            mat.emissive = statusColor[status].clone().multiplyScalar(0.1);
+
+            const sku = 'SKU' + String(100 + Math.floor(Math.random()*900));
+            const qty = status==='EMPTY' ? 0 : (status==='LOW'? Math.floor(rng(1,12)) : Math.floor(rng(12,48)));
+
+            item.userData = {
+              type:'pallet', status, sku, qty,
+              since: new Date(Date.now() - Math.floor(Math.random()*20)*24*3600*1000).toISOString().slice(0,10),
+              loc: rackData.code + ` L${lv+1}B${b+1}`
+            };
+            rack.add(item); rackData.pallets.push(item); pickables.push(item);
+          }
+        }
+        groupScene.add(rack); RACKS.push(rackData);
+      }
+    }
+
+    // KPIs
+    const kpiQty = document.getElementById('kpiQty');
+    const kpiSkus = document.getElementById('kpiSkus');
+    const kpiAlerts = document.getElementById('kpiAlerts');
+
+    const allPallets = pickables;
+    const uniqueSkus = new Set(allPallets.filter(p=>p.userData.qty>0).map(p=>p.userData.sku));
+    const sumQty = allPallets.reduce((s,p)=> s + (p.userData.qty||0), 0);
+    const alerts = allPallets.filter(p=>p.userData.status!=='FULL' && p.userData.status!=='RSV').length;
+    kpiQty.textContent = sumQty.toLocaleString();
+    kpiSkus.textContent = uniqueSkus.size.toString();
+    kpiAlerts.textContent = alerts.toString();
+
+    // Basic valuation demo numbers (mock)
+    const avgCostEl = document.getElementById('avgCost');
+    const onHandValEl = document.getElementById('onHandVal');
+    const periodCogsEl = document.getElementById('periodCogs');
+    const avgCost = 10.35; const onHandVal = sumQty * avgCost; const periodCogs = Math.round(onHandVal*0.18);
+    avgCostEl.textContent = `€${avgCost.toFixed(2)}`;
+    onHandValEl.textContent = `€${onHandVal.toLocaleString(undefined,{maximumFractionDigits:0})}`;
+    periodCogsEl.textContent = `€${periodCogs.toLocaleString()}`;
+
+    // Raycaster selection
+    const ray = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const detail = (obj)=>{
+      const dType = document.getElementById('dType');
+      const dCode = document.getElementById('dCode');
+      const dSku = document.getElementById('dSku');
+      const dQty = document.getElementById('dQty');
+      const dStatus = document.getElementById('dStatus');
+      const dSince = document.getElementById('dSince');
+      const dLoc = document.getElementById('dLoc');
+      if(!obj){ dType.textContent=dCode.textContent=dSku.textContent=dQty.textContent=dStatus.textContent=dSince.textContent=dLoc.textContent='—'; return; }
+      const u = obj.userData;
+      dType.textContent = u.type;
+      dCode.textContent = u.loc.split(' ')[0];
+      dSku.textContent  = u.sku;
+      dQty.textContent  = u.qty;
+      dStatus.textContent = u.status;
+      dSince.textContent = u.since;
+      dLoc.textContent = u.loc;
+    };
+
+    let selected = null; let lastMat = null;
+
+    function onClick(event){
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX-rect.left)/rect.width)*2 - 1;
+      mouse.y = -((event.clientY-rect.top)/rect.height)*2 + 1;
+      ray.setFromCamera(mouse, camera);
+      const hit = ray.intersectObjects(pickables, false)[0];
+      if(hit){
+        if(lastMat) lastMat.emissiveIntensity = 0.1;
+        selected = hit.object; lastMat = selected.material; lastMat.emissiveIntensity = 0.55;
+        detail(selected);
+        pushRecent(`Selected ${selected.userData.sku} · ${selected.userData.loc}`);
+      }
+    }
+
+    renderer.domElement.addEventListener('click', onClick);
+
+    // Recent actions feed
+    const recentEl = document.getElementById('recent');
+    function pushRecent(text){
+      const card = document.createElement('div'); card.className='card';
+      card.textContent = `${new Date().toLocaleTimeString()} · ${text}`;
+      recentEl.prepend(card);
+      while(recentEl.childElementCount>7) recentEl.lastChild.remove();
+    }
+
+    // Shortcuts
+    document.getElementById('btnZoomToEmpty').onclick = ()=>{
+      const empty = allPallets.filter(p=>p.userData.status==='EMPTY');
+      if(!empty.length) return; const target = empty[Math.floor(Math.random()*empty.length)];
+      controls.target.copy(target.position.clone().add(target.parent.position));
+      camera.position.copy(controls.target.clone().add(new THREE.Vector3(6,6,6)));
+      pushRecent('Zoomed to empty slot');
+    };
+    document.getElementById('btnZoomToAlerts').onclick = ()=>{
+      const low = allPallets.filter(p=>p.userData.status==='LOW'); if(!low.length) return;
+      const target = low[Math.floor(Math.random()*low.length)];
+      controls.target.copy(target.position.clone().add(target.parent.position));
+      camera.position.copy(controls.target.clone().add(new THREE.Vector3(6,6,6)));
+      pushRecent('Zoomed to low stock');
+    };
+
+    // Finance demo buttons
+    document.getElementById('finAdj').onclick = ()=> pushRecent('Value Adjustment draft created (P&L)');
+    document.getElementById('finReval').onclick = ()=> pushRecent('Revaluation scenario prepared (−10% on hand)');
+    document.getElementById('finLanded').onclick = ()=> pushRecent('Landed Cost allocation wizard opened');
+
+    // Animate
+    let frameCount = 0; let dynTestsDone = false;
+    function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      frameCount++;
+      // After a few frames, run dynamic tests once
+      if(!dynTestsDone && frameCount>10){
+        runDynamicTests(); dynTestsDone = true;
+      }
+    }
+    animate();
+
+    // Resize (with fallback if ResizeObserver unavailable)
+    const onResize = ()=>{ renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight); camera.aspect = sceneEl.clientWidth/sceneEl.clientHeight; camera.updateProjectionMatrix(); };
+    if('ResizeObserver' in window){ new ResizeObserver(onResize).observe(sceneEl); } else { addEventListener('resize', onResize); }
+
+    // Search demo
+    document.getElementById('btnFind').onclick = ()=>{
+      const q = (document.getElementById('searchSku').value||'').trim().toUpperCase();
+      if(!q) return; const hit = allPallets.find(p=> p.userData.sku===q || p.userData.loc.toUpperCase().includes(q));
+      if(hit){
+        controls.target.copy(hit.position.clone().add(hit.parent.position));
+        camera.position.copy(controls.target.clone().add(new THREE.Vector3(7,7,7)));
+        detail(hit); pushRecent(`Found ${hit.userData.sku} at ${hit.userData.loc}`);
+      } else {
+        pushRecent(`Not found: ${q}`);
+      }
+    };
+
+    // Ops quick stubs
+    const bindOp = (id, label)=> document.getElementById(id).onclick = ()=> pushRecent(label + (selected?` · ${selected.userData.sku}`:' · (no selection)'));
+    bindOp('opReceive','Receive'); bindOp('opTransfer','Transfer'); bindOp('opInventory','Inventory'); bindOp('opScrap','Scrap');
+    bindOp('actPick','Pick'); bindOp('actReserve','Reserve'); bindOp('actRelabel','Re‑label'); bindOp('actQuarantine','Quarantine');
+
+    // --- Self-tests (runtime) ---
+    const tests = [];
+    const updateSelfTest = ()=>{
+      const passed = tests.filter(t=>t[1]).length;
+      const chip = document.getElementById('selfTest');
+      if(!chip) return;
+      chip.textContent = `Self‑test: ${passed}/${tests.length} passed`;
+      chip.style.background = passed===tests.length ? 'rgba(75,211,123,.15)' : 'rgba(255,204,102,.15)';
+      chip.title = tests.map(([n,p])=> `${p?'✓':'✗'} ${n}`).join('\n') + (loadedFrom? `\nLoaded from: ${loadedFrom}` : '');
+    };
+    const addTest = (name, pass)=>{ tests.push([name, !!pass]); updateSelfTest(); };
+
+    // Static tests (existing)
+    addTest('THREE available', !!THREE && !!THREE.WebGLRenderer);
+    addTest('OrbitControls available', typeof OrbitControls === 'function');
+    addTest('Renderer created', !!renderer && !!renderer.domElement);
+    addTest('Pallets generated', Array.isArray(pickables) && pickables.length > 0);
+
+    // Additional tests (added earlier)
+    addTest('Controls instantiated', !!controls && typeof controls.update === 'function');
+
+    // Dynamic tests (require a frame)
+    function runDynamicTests(){
+      addTest('Animation running', true); // frameCount already advanced
+      addTest('Scene has objects', scene.children && scene.children.length > 0);
+      const sizeOk = renderer.domElement.width>0 && renderer.domElement.height>0; addTest('Canvas sized', sizeOk);
+      // Raycaster sanity: cast from camera toward first pickable
+      const first = pickables[0];
+      if(first){
+        const dirVec = first.getWorldPosition(new THREE.Vector3()).clone().sub(camera.position).normalize();
+        ray.set(camera.position.clone(), dirVec);
+        const hits = ray.intersectObjects(pickables, false);
+        addTest('Raycaster hits pickables', Array.isArray(hits) && hits.length>0);
+        // Search should find known SKU
+        const knownSku = first.userData.sku;
+        const found = pickables.find(p=> p.userData.sku===knownSku);
+        addTest('Search finds existing SKU', !!found);
+      } else {
+        addTest('Raycaster hits pickables', false);
+        addTest('Search finds existing SKU', false);
+      }
+    }
+  </script>
+</body>
+</html>

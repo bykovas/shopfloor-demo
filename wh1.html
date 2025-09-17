@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WMS WOW – Simple Form (Logical Warehouses + Agnum Export)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#f9f9f9;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --accent:#ffaa00;   /* Lauresta orange */
+      --accent-2:#009688; /* teal */
+      --danger:#d32f2f;
+      --warn:#f59e0b;
+      --ok:#2e7d32;
+      --radius:14px;
+      --shadow:0 8px 24px rgba(0,0,0,.08);
+      --shadow-sm:0 4px 12px rgba(0,0,0,.06);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto}
+    a{color:var(--accent-2);text-decoration:none}
+
+    .app{display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}
+    header{display:flex;gap:12px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#fff,#fafafa)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+    .tabs{display:flex;gap:8px;margin-left:16px}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm)}
+    .tab.active{border-color:transparent;background:linear-gradient(180deg,#fff,#f4f4f4)}
+    .kpi{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+    .chip{padding:6px 10px;border-radius:999px;background:#fff;border:1px solid var(--border);color:var(--muted);box-shadow:var(--shadow-sm);font-size:12px}
+
+    .toolbar{display:flex;gap:10px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--border);background:#fff;position:sticky;top:0;z-index:5}
+    .toolbar input,.toolbar select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff}
+    .btn{display:inline-flex;gap:8px;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(180deg,#fff,#f3f3f3);box-shadow:var(--shadow-sm);cursor:pointer;font-weight:700}
+    .btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+    .btn.primary{background:linear-gradient(180deg,#ffbd33,#ffaa00);color:#4a3000;border-color:#eab308}
+    .btn.success{background:linear-gradient(180deg,#42d29d,#18b981);color:#053d2f;border-color:#14b87f}
+    .btn.warn{background:linear-gradient(180deg,#ffd166,#f59e0b);color:#5a3a00;border-color:#f59e0b}
+    .btn.danger{background:linear-gradient(180deg,#ff9aa2,#ef4444);color:#5a0b0b;border-color:#ef4444}
+    .btn.ghost{background:#fff}
+
+    main{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:16px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .card .head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+    .card .body{padding:12px 14px}
+
+    .menu{display:flex;flex-direction:column}
+    .menu .item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px dashed var(--border);cursor:pointer}
+    .menu .item:hover{background:#fff7e6}
+
+    .grid{display:grid;gap:8px}
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+    .grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    thead th{font-size:12px;color:var(--muted);text-align:left;padding:0 8px}
+    tbody tr{background:var(--card);box-shadow:var(--shadow-sm)}
+    tbody td{padding:10px 8px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    tbody td:first-child{border-left:1px solid var(--border);border-top-left-radius:12px;border-bottom-left-radius:12px}
+    tbody td:last-child{border-right:1px solid var(--border);border-top-right-radius:12px;border-bottom-right-radius:12px}
+    .tag{padding:4px 8px;border-radius:999px;background:#fff;border:1px solid var(--border);color:var(--muted);font-size:12px}
+
+    .footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;justify-content:flex-end;background:#fff}
+
+    /* Modal */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.28);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal .box{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);max-width:780px;width:100%}
+    .modal .box .head{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:800}
+    .modal .box .body{padding:14px 16px}
+    .modal .box .actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+
+    /* Tiny badges */
+    .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted)}
+
+    /* WOW accents */
+    .wow{position:relative}
+    .wow:after{content:"";position:absolute;inset:auto auto -2px 10px;height:3px;width:36px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:3px;filter:saturate(1.2)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand"><span class="dot"></span> WMS LIVE · Forms</div>
+      <div class="tabs">
+        <button class="tab active" data-tab="logic">Logical warehouses</button>
+        <button class="tab" data-tab="inventory">Inventory ops</button>
+        <button class="tab" data-tab="valuation">Valuation</button>
+        <button class="tab" data-tab="agnum">Agnum export</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </div>
+      <div class="kpi">
+        <div class="chip">On‑hand: <b id="kpiQty">—</b></div>
+        <div class="chip">SKUs: <b id="kpiSkus">—</b></div>
+        <div class="chip">Alerts: <b id="kpiAlerts">0</b></div>
+        <div class="chip" id="selfTest">Self‑test: —</div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <select id="selWarehouse">
+        <option>Main</option>
+        <option>Aux</option>
+        <option>Cold</option>
+      </select>
+      <input id="search" placeholder="Search SKU / bin / doc..." />
+      <button class="btn ghost" id="btnScan">📷 Scan label</button>
+      <button class="btn primary" id="btnNew">＋ New document</button>
+      <span class="badge">Unlimited logical & physical warehouses</span>
+    </div>
+
+    <main>
+      <!-- LEFT MENU -->
+      <aside class="card">
+        <div class="head">Menu</div>
+        <div class="body menu">
+          <div class="item wow" data-tab="logic">📦 Logical & virtual stock</div>
+          <div class="item" data-tab="inventory">🧾 Receipts / Transfers / Scrap</div>
+          <div class="item" data-tab="valuation">💶 Value adjustments / Reval / Landed</div>
+          <div class="item" data-tab="agnum">🔗 Export to Agnum</div>
+          <div class="item" data-tab="settings">⚙️ Units / Categories / Mapping</div>
+        </div>
+      </aside>
+
+      <!-- RIGHT CONTENT -->
+      <section class="grid" id="content">
+
+        <!-- LOGICAL WAREHOUSES TAB -->
+        <div class="card" data-pane="logic">
+          <div class="head">Logical & Virtual Warehouses</div>
+          <div class="body">
+            <div class="grid cols-3">
+              <div>
+                <label>Logical warehouse</label>
+                <select id="logicWh" style="width:100%">
+                  <option value="RES">Reserved</option>
+                  <option value="PROD">Production</option>
+                  <option value="SCRAP">Write‑off</option>
+                  <option value="NLQ">Non‑liquid</option>
+                  <option value="QA">Quarantine</option>
+                </select>
+              </div>
+              <div>
+                <label>Physical warehouse</label>
+                <select id="physWh" style="width:100%">
+                  <option>Main</option>
+                  <option>Aux</option>
+                  <option>Cold</option>
+                </select>
+              </div>
+              <div>
+                <label>Category</label>
+                <select id="cat" multiple style="width:100%">
+                  <option>Textile</option>
+                  <option>Green</option>
+                  <option>Hardware</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn">➕ Move to logical</button>
+              <button class="btn">🔁 Reclassify</button>
+              <button class="btn">🚫 Quarantine</button>
+              <button class="btn">🏷️ Relabel</button>
+            </div>
+
+            <div style="margin-top:16px"></div>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Bin</th>
+                  <th>Logical WH</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th>Since</th>
+                  <th>Tags</th>
+                </tr>
+              </thead>
+              <tbody id="tblLogic"></tbody>
+            </table>
+          </div>
+          <div class="footer">
+            <button class="btn success" id="btnReserve">🔖 Reserve</button>
+            <button class="btn warn" id="btnLow">⚠️ Mark Low</button>
+            <button class="btn danger" id="btnEmpty">⛔ Mark Empty</button>
+          </div>
+        </div>
+
+        <!-- INVENTORY OPS TAB -->
+        <div class="card" data-pane="inventory" style="display:none">
+          <div class="head">Inventory Operations</div>
+          <div class="body">
+            <div class="grid cols-3">
+              <div>
+                <label>Operation</label>
+                <select id="opType" style="width:100%">
+                  <option>Receive</option>
+                  <option>Transfer</option>
+                  <option>Inventory</option>
+                  <option>Scrap</option>
+                </select>
+              </div>
+              <div>
+                <label>Document No.</label>
+                <input id="docNo" placeholder="e.g. GRN‑000123" style="width:100%" />
+              </div>
+              <div>
+                <label>Date</label>
+                <input id="docDate" type="date" style="width:100%" />
+              </div>
+            </div>
+
+            <div style="margin-top:12px"></div>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Description</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Qty</th>
+                  <th>UoM</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tblOps"></tbody>
+            </table>
+
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn" id="addRow">＋ Add row</button>
+              <button class="btn primary" id="postDoc">✅ Post</button>
+              <button class="btn ghost" id="saveDraft">💾 Save draft</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VALUATION TAB -->
+        <div class="card" data-pane="valuation" style="display:none">
+          <div class="head">Valuation & Adjustments</div>
+          <div class="body">
+            <div class="grid cols-3">
+              <div class="card" style="padding:0">
+                <div class="head">Average Cost</div>
+                <div class="body"><div class="tag">Avg cost: <b id="avgCost">€—</b></div></div>
+              </div>
+              <div class="card" style="padding:0">
+                <div class="head">On‑hand Value</div>
+                <div class="body"><div class="tag">On‑hand: <b id="onHandVal">€—</b></div></div>
+              </div>
+              <div class="card" style="padding:0">
+                <div class="head">Period COGS</div>
+                <div class="body"><div class="tag">COGS: <b id="periodCogs">€—</b></div></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn primary" id="finAdj">➕ Value Adjustment (P&L)</button>
+              <button class="btn warn" id="finReval">📉 Revaluation</button>
+              <button class="btn success" id="finLanded">🚚 Landed Cost</button>
+            </div>
+
+            <p style="color:var(--muted);margin-top:12px">Ручные корректировки по суммам не затрагивают физические остатки — только суммарный бухгалтерский слой. Квартальная выгрузка отдаёт в бухгалтерию общий итог по операциям.</p>
+          </div>
+        </div>
+
+        <!-- AGNUM EXPORT TAB -->
+        <div class="card" data-pane="agnum" style="display:none">
+          <div class="head">Export to Agnum</div>
+          <div class="body">
+            <div class="grid cols-3">
+              <div>
+                <label>Scope</label>
+                <select id="agScope" style="width:100%">
+                  <option value="summary">Summary (global)</option>
+                  <option value="virtual">By virtual warehouse</option>
+                  <option value="group">By groups / categories</option>
+                  <option value="physical">By physical warehouse</option>
+                </select>
+              </div>
+              <div>
+                <label>Period</label>
+                <input id="agPeriodFrom" type="date" /> – <input id="agPeriodTo" type="date" />
+              </div>
+              <div>
+                <label>Format</label>
+                <select id="agFormat" style="width:100%">
+                  <option>JSON</option>
+                  <option>CSV</option>
+                  <option>XML</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn primary" id="btnPreview">🔎 Preview payload</button>
+              <button class="btn success" id="btnExport">⬇️ Export</button>
+              <button class="btn ghost" id="btnMap">🧭 Mapping with Agnum</button>
+            </div>
+
+            <div style="margin-top:12px"></div>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Warehouse</th>
+                  <th>Virtual/Group</th>
+                  <th>SKUs</th>
+                  <th>Qty</th>
+                  <th>Sum (€)</th>
+                </tr>
+              </thead>
+              <tbody id="tblAgnum"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div class="card" data-pane="settings" style="display:none">
+          <div class="head">Units, Categories, Mapping</div>
+          <div class="body">
+            <div class="grid cols-3">
+              <div>
+                <label>Units conversion</label>
+                <div class="tag">1 Pallet = 24 Bags</div>
+                <div class="tag">1 Bag = 12 Units</div>
+              </div>
+              <div>
+                <label>Multi‑category assignment</label>
+                <div class="tag">SKU123 → Textile, Green</div>
+                <div class="tag">SKU278 → Hardware</div>
+              </div>
+              <div>
+                <label>Agnum nomenclature mapping</label>
+                <div class="tag">SKU123 → AG‑0001</div>
+                <div class="tag">SKU278 → AG‑0310</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="badge">Human‑error‑safe UX: confirmations, previews, undo</span>
+      <button class="btn ghost" id="btnUndo">↩︎ Undo</button>
+      <button class="btn ghost" id="btnRedo">↪︎ Redo</button>
+      <button class="btn primary" id="btnHelp">❓ Help</button>
+    </footer>
+  </div>
+
+  <!-- Modal for preview/export -->
+  <div class="modal" id="modal">
+    <div class="box">
+      <div class="head">Preview / Export</div>
+      <div class="body">
+        <pre id="preview" style="white-space:pre-wrap;max-height:50vh;overflow:auto;margin:0"></pre>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="closeModal">Close</button>
+        <button class="btn success" id="confirmExport">Export</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Mock data ---
+    const mockLogic = Array.from({length:12}).map((_,i)=>({
+      sku:'SKU'+(100+i), bin:'A'+(1+ (i%6))+'-B'+(1+((i/6)|0)), lwh:['RES','PROD','SCRAP','NLQ','QA'][i%5],
+      qty: (i%4===0? 0 : (i%3===0? 7 : 32)), status: (i%4===0? 'EMPTY': (i%3===0? 'LOW':'FULL')),
+      since: new Date(Date.now()-86400000*(i+1)).toISOString().slice(0,10), tags:(i%2?'reserved':'')
+    }));
+
+    const mockAgnum = Array.from({length:6}).map((_,i)=>({
+      idx:i+1, wh:['Main','Aux','Cold'][i%3], virt:['RES','PROD','SCRAP','NLQ'][i%4], skus: 10+i, qty: 120+i*7, sum: (2400+i*150)
+    }));
+
+    const state = { tab:'logic', tests:[] };
+
+    // --- Helper UI ---
+    const $$ = sel=>document.querySelector(sel);
+    const $$$ = sel=>Array.from(document.querySelectorAll(sel));
+    const setActiveTab = (id)=>{
+      state.tab = id;
+      $$$('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===id));
+      $$$('[data-pane]').forEach(p=>p.style.display = (p.dataset.pane===id?'block':'none'));
+    };
+
+    // Populate tables
+    const tblLogic = $$('#tblLogic');
+    function renderLogic(){
+      tblLogic.innerHTML = mockLogic.map(r=>`
+        <tr>
+          <td><b>${r.sku}</b></td>
+          <td>${r.bin}</td>
+          <td><span class="tag">${r.lwh}</span></td>
+          <td>${r.qty}</td>
+          <td>${r.status}</td>
+          <td>${r.since}</td>
+          <td>${r.tags? `<span class="tag">${r.tags}</span>`:''}</td>
+        </tr>`).join('');
+    }
+
+    const tblOps = $$('#tblOps');
+    function renderOps(){ tblOps.innerHTML = '' }
+
+    const tblAg = $$('#tblAgnum');
+    function renderAg(){
+      tblAg.innerHTML = mockAgnum.map(r=>`
+        <tr>
+          <td>${r.idx}</td>
+          <td>${r.wh}</td>
+          <td>${r.virt}</td>
+          <td>${r.skus}</td>
+          <td>${r.qty}</td>
+          <td>€${r.sum.toLocaleString()}</td>
+        </tr>`).join('');
+    }
+
+    // KPIs (mock derive)
+    function calcKpi(){
+      const qty = mockLogic.reduce((s,x)=>s+(x.qty||0),0);
+      const skus = new Set(mockLogic.filter(x=>x.qty>0).map(x=>x.sku)).size;
+      const alerts = mockLogic.filter(x=>x.status!=='FULL').length;
+      $$('#kpiQty').textContent = qty.toLocaleString();
+      $$('#kpiSkus').textContent = String(skus);
+      $$('#kpiAlerts').textContent = String(alerts);
+
+      // valuation (simple mock)
+      const avgCost = 10.35; const onHandVal = qty * avgCost; const periodCogs = Math.round(onHandVal*0.18);
+      $$('#avgCost') && ($$('#avgCost').textContent = `€${avgCost.toFixed(2)}`);
+      $$('#onHandVal') && ($$('#onHandVal').textContent = `€${onHandVal.toLocaleString(undefined,{maximumFractionDigits:0})}`);
+      $$('#periodCogs') && ($$('#periodCogs').textContent = `€${periodCogs.toLocaleString()}`);
+    }
+
+    // Events
+    $$$('.tab').forEach(t=>t.addEventListener('click',()=>setActiveTab(t.dataset.tab)));
+    $$$('.menu .item').forEach(i=>i.addEventListener('click',()=>setActiveTab(i.dataset.tab)));
+
+    $$('#addRow').addEventListener('click', ()=>{
+      const row = document.createElement('tr');
+      row.innerHTML = `<td><input placeholder="SKU"/></td>
+        <td><input placeholder="Description"/></td>
+        <td><input placeholder="From"/></td>
+        <td><input placeholder="To"/></td>
+        <td><input type="number" style="width:90px"/></td>
+        <td><select><option>Units</option><option>Bags</option><option>Pallets</option></select></td>
+        <td><button class="btn ghost">🗑️</button></td>`;
+      tblOps.appendChild(row);
+    });
+
+    $$('#btnPreview').addEventListener('click', ()=>{
+      const scope = $$('#agScope').value, fmt = $$('#agFormat').value;
+      const from = $$('#agPeriodFrom').value || '2025-07-01';
+      const to = $$('#agPeriodTo').value || '2025-09-30';
+      const payload = { system:'WMS', integration:'Agnum', scope, format:fmt, period:{from,to}, data: mockAgnum };
+      $$('#preview').textContent = JSON.stringify(payload, null, 2);
+      $$('#modal').style.display = 'flex';
+    });
+
+    $$('#btnExport').addEventListener('click', ()=>{
+      $$('#btnPreview').click();
+    });
+
+    $$('#confirmExport').addEventListener('click', ()=>{
+      // here we would trigger real file download / API push
+      alert('Exported to Agnum (mock).');
+      $$('#modal').style.display = 'none';
+    });
+
+    $$('#closeModal').addEventListener('click', ()=> $$('#modal').style.display = 'none');
+
+    // Footer actions (mock)
+    $$('#btnUndo').addEventListener('click', ()=> alert('Undo last action (mock)'));
+    $$('#btnRedo').addEventListener('click', ()=> alert('Redo (mock)'));
+    $$('#btnHelp').addEventListener('click', ()=> alert('Help & shortcuts:\n• Scan label to open item\n• Preview before export\n• Undo/Redo to avoid human errors'));
+
+    // --- Self tests ---
+    const tests=[]; const chip=$$('#selfTest');
+    const addTest=(name,pass)=>{tests.push([name,!!pass]);chip.textContent=`Self‑test: ${tests.filter(t=>t[1]).length}/${tests.length} passed`;chip.title=tests.map(([n,p])=>`${p?'✓':'✗'} ${n}`).join('\n');};
+
+    function init(){
+      renderLogic(); renderOps(); renderAg(); calcKpi();
+      addTest('Tables rendered', $$('#tblLogic').children.length>0 && $$('#tblAgnum').children.length>0);
+      addTest('KPIs calculated', $$('#kpiQty').textContent!== '—');
+      addTest('Tabs switch', typeof setActiveTab==='function');
+    }
+
+    init();
+  </script>
+</body>
+</html>
